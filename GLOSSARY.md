@@ -10,7 +10,9 @@
 
 **Reset**: The moment a quota window's usage returns to zero.
 
-**Usage bar**: The status-line rendering of one quota window's usage, together with time until reset.
+**Usage bar**: The status-line rendering of one quota window's usage, together with time until reset: the whole piece for one provider (provider label, window label, progress bar, percentage, countdown), not only its cells.
+
+**Progress bar**: The row of filled and empty cells (`▰▰▰▱▱`) inside a usage bar that draws usage as a proportion. Part of a usage bar, not a synonym for it.
 
 **Usage snapshot**: One provider's usage across all its quota windows as read at a single moment, together with when it was read and whether the reading succeeded. Usage bars are always drawn from a usage snapshot, never from a provider directly.
 
@@ -21,3 +23,9 @@
 **Stale**: A usage snapshot whose last good reading is too old to trust. Staleness is judged at the moment of drawing, not recorded in the snapshot.
 
 **Pending**: A provider for which no usage snapshot exists yet.
+
+**Rotation**: Showing one provider's usage bar at a time in a single slot, cycling through the enabled providers in turn. Opt-in; the default shows every enabled provider side by side.
+
+**Focus**: The provider whose AI agent is running in the active tmux pane. Opt-in, independent of rotation: when on, the focused provider is shown alone, taking precedence over both the side-by-side view and rotation; with no agent in the pane, or one whose provider isn't enabled, the usual view returns.
+
+**Step**: How much of a usage bar is shown at the current terminal width, from full (every part) down to the provider label alone. All shown providers are drawn at the same step.
