@@ -11,3 +11,5 @@
 **Reset**: The moment a quota window's usage returns to zero.
 
 **Usage bar**: The status-line rendering of one quota window's usage, together with time until reset.
+
+**Usage snapshot**: One provider's usage across all its quota windows as read at a single moment, together with when it was read and whether the reading succeeded. Usage bars are always drawn from a usage snapshot, never from a provider directly.
