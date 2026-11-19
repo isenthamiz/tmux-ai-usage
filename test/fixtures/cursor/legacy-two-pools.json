@@ -1,0 +1,16 @@
+{
+  "sand": {
+    "isUnified": false
+  },
+  "summary": {
+    "billingCycleStart": "2026-11-01T00:00:00.000Z",
+    "billingCycleEnd": "2026-11-30T00:00:00.000Z",
+    "membershipType": "pro",
+    "individualUsage": {
+      "plan": {
+        "autoPercentUsed": 45,
+        "apiPercentUsed": 12
+      }
+    }
+  }
+}

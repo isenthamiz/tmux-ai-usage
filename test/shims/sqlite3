@@ -1,0 +1,8 @@
+#!/bin/bash
+# Test double for sqlite3. Returns CURSOR_SHIM_TOKEN for the accessToken query.
+if printf '%s\n' "$*" | grep -q "cursorAuth/accessToken"; then
+  printf '%s' "${CURSOR_SHIM_TOKEN:-}"
+  exit 0
+fi
+echo "sqlite3 shim: unsupported query" >&2
+exit 1

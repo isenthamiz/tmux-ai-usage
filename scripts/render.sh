@@ -14,6 +14,12 @@ now=${AI_USAGE_NOW:-$(date +%s)}
 snapshot=$(snapshot_path "$provider")
 
 load_options
+case $provider in
+  claude) PROVIDER_LABEL=$CLAUDE_LABEL ;;
+  codex) PROVIDER_LABEL=$CODEX_LABEL ;;
+  cursor) PROVIDER_LABEL=${CURSOR_LABEL:-cu} ;;
+  *) PROVIDER_LABEL=$provider ;;
+esac
 
 maybe_start_refresh() {
   local fetched=${1:-0} retry=${2:-0}
@@ -25,7 +31,7 @@ maybe_start_refresh() {
 
 if [ ! -f "$snapshot" ]; then
   maybe_start_refresh 0 0
-  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$PROVIDER_LABEL"
   exit 0
 fi
 
@@ -49,28 +55,28 @@ maybe_start_refresh "${fetched_at:-0}" "${retry_at:-0}"
 
 case $status in
   signed_out)
-    printf '#[fg=%s]%s !login#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    printf '#[fg=%s]%s !login#[fg=default]\n' "$COLOR_CRIT" "$PROVIDER_LABEL"
     exit 0 ;;
   missing_dep)
-    printf '#[fg=%s]%s !deps#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    printf '#[fg=%s]%s !deps#[fg=default]\n' "$COLOR_CRIT" "$PROVIDER_LABEL"
     exit 0 ;;
   bad_shape)
-    printf '#[fg=%s]%s !format#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    printf '#[fg=%s]%s !format#[fg=default]\n' "$COLOR_CRIT" "$PROVIDER_LABEL"
     exit 0 ;;
 esac
 
 if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ]; then
   if [ "$status" = error ]; then
-    printf '#[fg=%s]%s !error#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    printf '#[fg=%s]%s !error#[fg=default]\n' "$COLOR_CRIT" "$PROVIDER_LABEL"
   else
-    printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+    printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$PROVIDER_LABEL"
   fi
   exit 0
 fi
 
 # Pending: no successful reading yet, but windows present should not happen; treat as pending.
 if [ -z "${ok_at:-}" ] || [ "$ok_at" = 0 ]; then
-  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$PROVIDER_LABEL"
   exit 0
 fi
 
@@ -102,10 +108,10 @@ bar=$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")
 
 if [ -n "$countdown_str" ]; then
   printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s #[fg=%s]%s#[fg=default]\n' \
-    "$label_color" "$CODEX_LABEL" "$dim_color" "$window_label" \
+    "$label_color" "$PROVIDER_LABEL" "$dim_color" "$window_label" \
     "$bar_color" "$bar" "$pct" "$dim_color" "$countdown_str"
 else
   printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s#[fg=default]\n' \
-    "$label_color" "$CODEX_LABEL" "$dim_color" "$window_label" \
+    "$label_color" "$PROVIDER_LABEL" "$dim_color" "$window_label" \
     "$bar_color" "$bar" "$pct"
 fi

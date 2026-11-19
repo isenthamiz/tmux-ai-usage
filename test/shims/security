@@ -1,0 +1,11 @@
+#!/bin/bash
+# Test double for security. Returns CURSOR_SHIM_KEYCHAIN_PASS for Cursor Safe Storage.
+case " $* " in
+  *" Cursor Safe Storage "*) ;;
+  *) echo "security shim: unsupported" >&2; exit 1 ;;
+esac
+if [ -n "${CURSOR_SHIM_KEYCHAIN_EXIT:-}" ]; then
+  cat "${CURSOR_SHIM_KEYCHAIN_STDERR:-/dev/null}" >&2
+  exit "$CURSOR_SHIM_KEYCHAIN_EXIT"
+fi
+printf '%s' "${CURSOR_SHIM_KEYCHAIN_PASS:-test-keychain-pass}"
