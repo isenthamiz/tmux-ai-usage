@@ -35,10 +35,10 @@ _decrypt_token() { # stored openssl_bin
     return 0
   fi
 
-  local pass blob key_hex ct_file dec_file
+  local pass key_hex blob_file ct_file dec_file
   sec_err=$(mktemp)
   if ! pass=$(security find-generic-password -s 'Cursor Safe Storage' -a 'Cursor Key' -w 2>"$sec_err"); then
-  if grep -qiE 'user cancel|was denied|canceled' "$sec_err" 2>/dev/null; then
+    if grep -qiE 'user cancel|was denied|canceled' "$sec_err" 2>/dev/null; then
       rm -f "$sec_err"
       echo "Keychain access refused" >&2
       return 3
@@ -52,27 +52,30 @@ _decrypt_token() { # stored openssl_bin
     rm -f "$sec_err"
   fi
 
-  blob=$(printf '%s' "${stored#cursor-safe-storage:v1:}" | base64 -D 2>/dev/null) || {
-    echo "could not decode stored token" >&2
-    return 1
-  }
-  if [ "${blob:0:3}" != $'v10' ]; then
-    echo "unrecognised encrypted token" >&2
+  # openssl kdf prints the key as colon-separated hex (6F:2A:...).
+  key_hex=$("$openssl_bin" kdf -keylen 16 -kdfopt digest:SHA1 -kdfopt "pass:$pass" \
+    -kdfopt salt:saltysalt -kdfopt iter:1003 PBKDF2 2>/dev/null | tr -d ':\n')
+  if [ "${#key_hex}" -ne 32 ]; then
+    echo "token decryption failed" >&2
     return 1
   fi
 
-  key_hex=$("$openssl_bin" kdf -keylen 16 -kdfopt digest:SHA1 -kdfopt "pass:$pass" \
-    -kdfopt salt:saltysalt -kdfopt iter:1003 PBKDF2 2>/dev/null | xxd -p -c 32) || {
-    echo "token decryption failed" >&2
-    return 1
-  }
-
+  # Keep the binary ciphertext in files: bash variables drop NUL bytes.
+  blob_file=$(mktemp)
   ct_file=$(mktemp)
   dec_file=$(mktemp)
-  trap 'rm -f "$ct_file" "$dec_file"' RETURN
-  printf '%s' "${blob:3}" | base64 >"$ct_file"
+  trap 'rm -f "$blob_file" "$ct_file" "$dec_file"' RETURN
+  if ! printf '%s' "${stored#cursor-safe-storage:v1:}" | base64 -D >"$blob_file" 2>/dev/null; then
+    echo "could not decode stored token" >&2
+    return 1
+  fi
+  if [ "$(head -c 3 "$blob_file")" != v10 ]; then
+    echo "unrecognised encrypted token" >&2
+    return 1
+  fi
+  tail -c +4 "$blob_file" >"$ct_file"
   if ! "$openssl_bin" enc -d -aes-128-cbc -K "$key_hex" \
-      -iv 20202020202020202020202020202020 -base64 -in "$ct_file" -out "$dec_file" 2>/dev/null; then
+      -iv 20202020202020202020202020202020 -in "$ct_file" -out "$dec_file" 2>/dev/null; then
     echo "token decryption failed" >&2
     return 1
   fi
