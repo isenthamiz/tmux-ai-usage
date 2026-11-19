@@ -35,3 +35,8 @@ NOW=1795074751
   [ "$(echo "$out" | jq -c '{ok_at, fetched_at, windows: [.windows[].label]}')" = \
     '{"ok_at":1795070000,"fetched_at":1795074751,"windows":["5h"]}' ]
 }
+@test "timestamps with fractional seconds and UTC offsets are parsed" {
+  run normalize cache-fractional-offset "$NOW"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -c '{status, resets: [.windows[] | {label, resets_at}]}')" = '{"status":"ok","resets":[{"label":"5h","resets_at":1795089600},{"label":"wk","resets_at":1795687200}]}' ]
+}

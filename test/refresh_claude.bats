@@ -14,6 +14,8 @@ NOW=1795074751
   seed_snapshot_claude five-hour-weekly $((NOW - 120))
   AI_USAGE_NOW=$NOW run refresh claude
   [ "$(jq -r '.status' "$CACHE/claude.json")" = "ok" ]
+  # A live reading is stamped now; the cache fallback would carry its own older fetchedAtMs.
+  [ "$(jq -r '.ok_at' "$CACHE/claude.json")" = "$NOW" ]
   [ "$(jq -c '[.windows[].label]' "$CACHE/claude.json")" = '["5h","wk"]' ]
   [ "$(claude_calls)" = 1 ]
 }

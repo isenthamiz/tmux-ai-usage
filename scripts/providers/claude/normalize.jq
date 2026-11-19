@@ -1,10 +1,7 @@
 # Claude get_usage (or cache) payload -> usage snapshot. Pure; `$now` is epoch seconds.
 include "labels";
+include "time";
 
-def iso_epoch:
-  if type == "number" then .
-  elif type == "string" then (fromdateiso8601 | floor)
-  else null end;
 
 def window_from($label; $seconds; $obj):
   if $obj == null or ($obj | type) != "object" then empty

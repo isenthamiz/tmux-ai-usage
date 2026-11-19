@@ -39,3 +39,7 @@ setup() {
   echo "$output" | grep -q 'error=HTTP 429'
   echo "$output" | grep -q "retry_at=$((NOW + 300))"
 }
+@test "doctor prints the separator as readable text, even under the C locale" {
+  LC_ALL=C LANG=C AI_USAGE_NOW=$NOW run doctor
+  echo "$output" | grep -qxF "options separator=' │ '"
+}
