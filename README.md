@@ -47,24 +47,114 @@ set -g status-right '#{prefix} │ #{ai_usage} │ %H:%M'
 
 ## Options
 
-Invalid values are reset to their defaults at load time (you get one `display-message` per bad option). The renderer silently falls back to defaults if an option becomes invalid later.
+Options are ordinary tmux user options, set with `set -g @ai_usage_<name> '<value>'`. A complete `~/.tmux.conf`:
 
-| Option | Type / validation | Default |
+```tmux
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'catppuccin/tmux'
+set -g @plugin 'isenthamiz/tmux-ai-usage'
+
+set -g status-right '#{ai_usage} │ %H:%M'
+
+set -g @ai_usage_providers 'claude cursor'
+set -g @ai_usage_claude_window 'wk'
+set -g @ai_usage_warn_at '70'
+
+run '~/.tmux/plugins/tpm/tpm'
+```
+
+### When changes apply
+
+- Options can go anywhere in `~/.tmux.conf`; they do not have to come before the plugin line.
+- The status line reads options on every redraw, so a change applies on the next redraw. You can try one live with `tmux set -g @ai_usage_bar_width 0`.
+- Adding or moving a `#{ai_usage…}` token in `status-left` or `status-right` needs a reload (`prefix + r`) or a tmux restart, because tokens are replaced when the plugin loads.
+- Invalid values are reported at load time, one `display-message` per bad option, and reset to their defaults. A value that becomes invalid later silently falls back to the default.
+
+### Recipes
+
+Show only Claude and Cursor, in that order:
+
+```tmux
+set -g @ai_usage_providers 'claude cursor'
+```
+
+Always show Claude's weekly window instead of the most-used one:
+
+```tmux
+set -g @ai_usage_claude_window 'wk'
+```
+
+Percentage only, no bar:
+
+```tmux
+set -g @ai_usage_bar_width '0'
+```
+
+Colours without catppuccin:
+
+```tmux
+set -g @ai_usage_ok_color '#50fa7b'
+set -g @ai_usage_warn_color '#f1fa8c'
+set -g @ai_usage_crit_color '#ff5555'
+set -g @ai_usage_text_color '#f8f8f2'
+set -g @ai_usage_dim_color '#6272a4'
+```
+
+Each provider in its own place:
+
+```tmux
+set -g status-left '#{ai_usage_claude} '
+set -g status-right '#{ai_usage_cursor} │ %H:%M'
+```
+
+### Window labels
+
+`@ai_usage_<provider>_window` picks which quota window the usage bar shows. `auto` (the default) shows the window with the highest current usage. To pin one window, use its label:
+
+| Provider | Window labels |
+|---|---|
+| Claude | `5h`, `wk`, and model-scoped weekly windows such as `wk-opus`, `wk-sonnet` (`wk-<model>`) |
+| Codex | `5h`, `wk` |
+| Cursor | `wk` on unified plans; `mo-auto`, `mo-api` on legacy plans |
+
+A label the provider does not currently report falls back to `auto`.
+
+### Reference
+
+**What to show**
+
+| Option | Value | Default |
 |---|---|---|
-| `@ai_usage_providers` | Space-separated subset of `claude codex cursor`; order for `#{ai_usage}` | `claude codex cursor` |
-| `@ai_usage_claude_window` / `@ai_usage_codex_window` / `@ai_usage_cursor_window` | `auto` or a window label (`5h`, `wk`, `mo`, `mo-auto`, …); unknown label → `auto` | `auto` |
-| `@ai_usage_bar_width` | Integer ≥ 0 (`0` = percentage only, no bar glyphs) | `5` |
-| `@ai_usage_bar_filled` / `@ai_usage_bar_empty` | String | `▰` / `▱` |
-| `@ai_usage_warn_at` / `@ai_usage_crit_at` | Integer 0–100; warn must be &lt; crit | `60` / `85` |
-| `@ai_usage_ok_color` / `@ai_usage_warn_color` / `@ai_usage_crit_color` | tmux colour | `@thm_green` / `@thm_yellow` / `@thm_red`, else `#a6e3a1` / `#f9e2af` / `#f38ba8` |
-| `@ai_usage_text_color` / `@ai_usage_dim_color` | tmux colour | `@thm_subtext_0` / `@thm_overlay_0`, else `#bac2de` / `#6c7086` |
+| `@ai_usage_providers` | Space-separated subset of `claude codex cursor`; also the order in `#{ai_usage}` | `claude codex cursor` |
+| `@ai_usage_claude_window` / `@ai_usage_codex_window` / `@ai_usage_cursor_window` | `auto` or a window label (see above) | `auto` |
 | `@ai_usage_claude_label` / `@ai_usage_codex_label` / `@ai_usage_cursor_label` | String | `cl` / `cx` / `cu` |
-| `@ai_usage_separator` | String | ` │ ` |
-| `@ai_usage_refresh_interval` | Integer seconds; values below 60 are raised to 60 | `60` |
-| `@ai_usage_stale_after` | Integer seconds; must be ≥ refresh interval | `900` |
-| `@ai_usage_cache_dir` | Path; created with mode `700` if missing | `${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage` |
+| `@ai_usage_separator` | String between providers in `#{ai_usage}` | ` │ ` |
 
-With `auto`, the bar shows the quota window with the highest current usage (including model-scoped windows).
+**Bar**
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_bar_width` | Integer ≥ 0; `0` shows the percentage only | `5` |
+| `@ai_usage_bar_filled` / `@ai_usage_bar_empty` | String | `▰` / `▱` |
+
+**Colours and thresholds**
+
+If a catppuccin theme is loaded, colours follow its palette; otherwise the hex defaults below apply.
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_warn_at` / `@ai_usage_crit_at` | Integer 0–100; warn must be less than crit | `60` / `85` |
+| `@ai_usage_ok_color` / `@ai_usage_warn_color` / `@ai_usage_crit_color` | tmux colour; bar and percentage below warn, at or above warn, at or above crit | `#a6e3a1` / `#f9e2af` / `#f38ba8` |
+| `@ai_usage_text_color` | tmux colour; provider label | `#bac2de` |
+| `@ai_usage_dim_color` | tmux colour; window label, countdown, separator | `#6c7086` |
+
+**Refresh and cache**
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_refresh_interval` | Seconds between fetches; values below 60 are raised to 60 | `60` |
+| `@ai_usage_stale_after` | Seconds before a reading is shown as stale; must be ≥ the refresh interval | `900` |
+| `@ai_usage_cache_dir` | Path; created with mode `700` if missing | `${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage` |
 
 ## Dependencies
 
