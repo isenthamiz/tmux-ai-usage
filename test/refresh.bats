@@ -157,3 +157,11 @@ NOW=1795074751
   unset AI_USAGE_TEST_NO_CURL
   [ "$(jq -r .status "$CACHE/codex.json")" = "missing_dep" ]
 }
+
+@test "refresh with a missing or unknown provider writes nothing and fails" {
+  run "$ROOT/scripts/refresh.sh"
+  [ "$status" -eq 2 ]
+  run "$ROOT/scripts/refresh.sh" nope
+  [ "$status" -eq 2 ]
+  [ -z "$(ls -A "$CACHE")" ]
+}

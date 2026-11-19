@@ -1,11 +1,7 @@
 # Cursor acquire payload (sand + optional summary) -> usage snapshot. Pure; $now is epoch seconds.
 include "labels";
+include "time";
 
-def iso_epoch:
-  if type == "number" then .
-  elif type == "string" then
-    (if test("\\.[0-9]+") then sub("\\.[0-9]+"; "") else . end | fromdateiso8601 | floor)
-  else null end;
 
 def sand_ok:
   (.sand | type) == "object"

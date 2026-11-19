@@ -13,6 +13,7 @@ if ! claude_bin=$(find_claude_binary); then
   exit 1
 fi
 
+# Claude Code 2.1.x refuses --print with stream-json output unless --verbose is set.
 _usage_request='{"type":"control_request","request_id":"'"$request_id"'","request":{"subtype":"get_usage","skip_behaviors":true}}'
 
 stderr=$(mktemp)
@@ -22,7 +23,7 @@ trap 'rm -f "$stderr" "$stream" "$stdin_hold"' EXIT
 
 { printf '%s\n' "$_usage_request"
   while [ -e "$stdin_hold" ]; do sleep 0.2; done
-} | "$claude_bin" -p --no-session-persistence \
+} | "$claude_bin" -p --verbose --no-session-persistence \
   --input-format stream-json --output-format stream-json 2>"$stderr" >"$stream" &
 runner=$!
 

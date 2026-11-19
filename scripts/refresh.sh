@@ -12,8 +12,15 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/deps.sh"
 # shellcheck source=scripts/lib/watchdog.sh
 . "$DIR/lib/watchdog.sh"
+# shellcheck source=scripts/lib/providers.sh
+. "$DIR/lib/providers.sh"
 
-provider=$1
+provider=${1:-}
+# An empty or unknown name would write a snapshot such as ".json" in the cache.
+if [ -z "$provider" ] || ! list_providers "$DIR" | grep -qx "$provider"; then
+  echo "usage: refresh.sh <$(list_providers "$DIR" | paste -sd'|' -)>" >&2
+  exit 2
+fi
 now=${AI_USAGE_NOW:-$(date +%s)}
 load_options
 cache=$(cache_dir)

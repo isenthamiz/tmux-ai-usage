@@ -3,6 +3,17 @@
 # Env: CLAUDE_SHIM_RESPONSE (get_usage body JSON), CLAUDE_SHIM_EXIT, CLAUDE_SHIM_DELAY,
 #      CLAUDE_SHIM_STDERR (file whose contents are copied to stderr).
 [ -n "${CLAUDE_SHIM_LOG:-}" ] && echo call >>"$CLAUDE_SHIM_LOG"
+# Like Claude Code 2.1.x: --print with stream-json output requires --verbose.
+case " $* " in
+  *" -p "*|*" --print "*)
+    case " $* " in
+      *" --output-format stream-json "*)
+        case " $* " in
+          *" --verbose "*) ;;
+          *) echo "Error: When using --print, --output-format=stream-json requires --verbose" >&2; exit 1 ;;
+        esac ;;
+    esac ;;
+esac
 IFS= read -r req
 request_id=$(printf '%s' "$req" | jq -r '.request_id // "tmux-ai-usage"')
 sleep "${CLAUDE_SHIM_DELAY:-0}"
