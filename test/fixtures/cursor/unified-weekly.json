@@ -1,0 +1,9 @@
+{
+  "sand": {
+    "isUnified": true,
+    "usagePercent": 58,
+    "currentPeriodStart": "2026-11-14T09:17:45.000Z",
+    "nextResetTimestampUtc": "2026-11-21T09:17:45.000Z"
+  },
+  "summary": null
+}

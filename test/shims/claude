@@ -1,0 +1,16 @@
+#!/bin/bash
+# Test double for `claude -p`. Records calls in $CLAUDE_SHIM_LOG.
+# Env: CLAUDE_SHIM_RESPONSE (get_usage body JSON), CLAUDE_SHIM_EXIT, CLAUDE_SHIM_DELAY,
+#      CLAUDE_SHIM_STDERR (file whose contents are copied to stderr).
+[ -n "${CLAUDE_SHIM_LOG:-}" ] && echo call >>"$CLAUDE_SHIM_LOG"
+IFS= read -r req
+request_id=$(printf '%s' "$req" | jq -r '.request_id // "tmux-ai-usage"')
+sleep "${CLAUDE_SHIM_DELAY:-0}"
+if [ -n "$CLAUDE_SHIM_EXIT" ]; then
+  [ -n "${CLAUDE_SHIM_STDERR:-}" ] && [ -r "$CLAUDE_SHIM_STDERR" ] && cat "$CLAUDE_SHIM_STDERR" >&2
+  exit "$CLAUDE_SHIM_EXIT"
+fi
+body=$(cat "${CLAUDE_SHIM_RESPONSE:?}")
+jq -nc --arg id "$request_id" --argjson body "$body" \
+  '{type:"control_response", response:{request_id:$id, response:$body}}'
+exit 0

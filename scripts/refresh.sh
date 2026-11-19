@@ -51,6 +51,16 @@ if [ "$provider" = codex ]; then
     _write_merged "$(_acquire_failure_snapshot missing_dep "curl not found")"
     exit 0
   fi
+elif [ "$provider" = claude ]; then
+  if ! find_claude_binary >/dev/null; then
+    _write_merged "$(_acquire_failure_snapshot missing_dep "claude CLI not found")"
+    exit 0
+  fi
+elif [ "$provider" = cursor ]; then
+  if miss=$(cursor_missing_dep); then
+    _write_merged "$(_acquire_failure_snapshot missing_dep "$miss not found")"
+    exit 0
+  fi
 fi
 
 err=$(mktemp)
@@ -64,6 +74,9 @@ if [ "$acquire_rc" -ne 0 ]; then
     2)
       new_snapshot=$(_acquire_failure_snapshot signed_out "$(head -1 "$err")")
       ;;
+    3)
+      new_snapshot=$(_acquire_failure_snapshot missing_dep "$(head -1 "$err")")
+      ;;
     124)
       new_snapshot=$(_acquire_failure_snapshot error "acquire timed out")
       ;;
@@ -72,7 +85,7 @@ if [ "$acquire_rc" -ne 0 ]; then
       [ -z "$err_msg" ] && err_msg="fetch failed"
       if grep -q '^retry_after=' "$err" 2>/dev/null; then
         retry_after=$(grep '^retry_after=' "$err" | head -1 | cut -d= -f2-)
-        err_msg="HTTP 429 from wham/usage"
+        err_msg="HTTP 429"
       fi
       new_snapshot=$(_acquire_failure_snapshot error "$err_msg")
       ;;
