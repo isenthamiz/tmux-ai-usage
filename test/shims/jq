@@ -1,0 +1,5 @@
+#!/bin/bash
+# Wrap jq; append argv to $JQ_SHIM_LOG when set.
+[ -n "$JQ_SHIM_LOG" ] && printf 'invoke\n' >>"$JQ_SHIM_LOG"
+# Must not resolve jq via PATH (this shim is usually first).
+exec /usr/bin/jq "$@"
