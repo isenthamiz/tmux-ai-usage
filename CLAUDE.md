@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 tmux-ai-usage is a TPM (tmux plugin manager) plugin that shows plan-quota usage bars for AI coding agents (Claude, Codex, Cursor) in the tmux status line. It is configured through tmux options.
 
-## Status: planning
+## Status: spec complete, no code yet
 
-There is no code yet, so there are no build, lint, or test commands. The repo holds only `README.md` and `GLOSSARY.md`.
+There are no build, lint, or test commands yet. `SPEC.md` is the build-ready v1 spec: architecture, file tree, usage-snapshot format, per-provider data sources, look, options and testing. Build from it, and don't reopen a decision it records without asking.
 
-The plan for reaching a build-ready spec is a wayfinder map kept in the GitHub issues of `isenthamiz/tmux-ai-usage`, under the label `wayfinder:map`. Read those issues before proposing a design or writing code, because they record decisions that have already been made.
+Each section of `SPEC.md` links the closed GitHub issue that holds the reasoning behind it. The issues are indexed by the wayfinder map, the issue labelled `wayfinder:map`.
 
 ## Domain vocabulary
 
