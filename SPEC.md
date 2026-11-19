@@ -2,7 +2,7 @@
 
 A TPM-installable tmux plugin that draws **usage bars** in the status line. Each bar shows how much of a quota window's plan quota has been used, plus the time until it resets, for Claude, Codex and Cursor. It is macOS-only in v1.
 
-This file gathers the decisions recorded on the wayfinder map, [Wayfinder: tmux plan-quota usage bars for Claude, Codex, Cursor](https://github.com/isenthamiz/tmux-ai-usage/issues/1). Each section links the ticket that holds the full reasoning. Terms (provider, plan quota, quota window, usage snapshot, snapshot status, window label, stale, pending) are defined in [`GLOSSARY.md`](GLOSSARY.md).
+This file gathers the decisions recorded on the wayfinder map, [Wayfinder: tmux plan-quota usage bars for Claude, Codex, Cursor](https://github.com/isenthamiz/tmux-ai-usage/issues/1). Each section links the ticket that holds the full reasoning. Terms (provider, plan quota, quota window, usage snapshot, snapshot status, window label, stale, pending, progress bar, step, rotation, focus) are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
 ## Scope
 
@@ -33,6 +33,7 @@ scripts/
   render.sh <all|claude|codex|cursor>   # the #() target
   refresh.sh <provider>       # lock → dependency check → acquire | normalize → atomic write
   doctor.sh                   # diagnostic (reads snapshots only)
+  details.sh                  # details popup body (reads snapshots only)
   smoke.sh                    # manual live check (fetches)
   lib/{options,snapshot,format,lock}.sh
   lib/labels.jq               # window label from window length, shared by normalizers
@@ -45,15 +46,17 @@ Makefile  README.md
 ### Entrypoint: `ai_usage.tmux`
 
 - Rewrites tokens in `status-left` and `status-right` the way tmux-cpu does:
-  - `#{ai_usage}` → `#($DIR/scripts/render.sh all)`
+  - `#{ai_usage}` → `#($DIR/scripts/render.sh all)`, or with `@ai_usage_focus on` → `#($DIR/scripts/render.sh all #{q:pane_current_command} #{q:pane_tty})`
   - `#{ai_usage_claude|codex|cursor}` → `#($DIR/scripts/render.sh <provider>)`
   - No option values go into the command string.
 - Validates every option once (see [Options](#options)). An invalid value falls back to its default, and one `display-message` names the option and the bad value.
+- Binds `@ai_usage_details_key` (default `u`) in the prefix table to open the [details popup](#details-popup), unless it is empty.
 - Checks only for `jq`. If `jq` is missing, it shows one `display-message` and rewrites every token to a literal `!jq` in the crit colour.
 
 ### Renderer: `render.sh`
 
-- Each run makes one `tmux show-options -g` call and one `jq` call covering every snapshot it draws. Target: under 50 ms.
+- Each run makes one `tmux show-options -g` call and one `jq` call covering every snapshot it draws, and prints every step at once inside one `client_width` conditional. Target: under 50 ms; it must stay well under 1 s, because tmux re-runs a `#()` command that takes ≥ 1 s in a loop. With focus on, a `node` or shell pane adds one `ps -t` call (~1.5 ms).
+- Never calls `tmux display -p` for the width: with several clients it answers for one of them.
 - Option changes take effect within one `status-interval`, with no reload.
 - An option made invalid after load silently falls back to its default; the renderer never prints an option error.
 - Starts a refresh as `( refresh.sh <p> </dev/null >/dev/null 2>&1 & )`.
@@ -169,54 +172,109 @@ From [Where can Cursor plan-quota usage be read from?](https://github.com/isenth
 
 ## Look
 
-From [What should the usage bars look like?](https://github.com/isenthamiz/tmux-ai-usage/issues/6). The rejected variants are on the `prototype/usage-bars` branch.
+From [What should the usage bars look like?](https://github.com/isenthamiz/tmux-ai-usage/issues/6), revised by the map [Wayfinder: compact, width-aware usage bars](https://github.com/isenthamiz/tmux-ai-usage/issues/35). The rejected variants are on the `prototype/usage-bars` branch.
 
 ```
-cl wk ▰▰▰▱▱ 67% 3d4h │ cx 5h ▰▰▰▰▱ 81% 47m │ cu wk ▰▰▰▱▱ 58% 4d2h
+cl wk ▰▰▰▱▱ 3d4h │ cx 5h ▰▰▰▰▱ 47m │ cu wk ▰▰▰▱▱ 4d2h
 ```
 
-- **Pieces:** one piece per provider, made of label, window label, bar, percentage and countdown. The piece shows the provider's selected window: `auto` means the most-used one, model-scoped windows included. `#{ai_usage}` joins the pieces with the separator.
-- **Bar:** filled cells = round(used_pct × width / 100).
+- **Pieces:** one usage bar per provider, made of provider label, window label, progress bar, percentage and countdown; which of these show depends on the [step](#steps). The piece shows the provider's selected window: `auto` means the most-used one, model-scoped windows included. `#{ai_usage}` joins the pieces with the separator.
+- **Progress bar:** filled cells = round(used_pct × width / 100). With `@ai_usage_bar_width 0` the percentage takes the progress bar's place at every step (`cl wk 67% 3d4h`).
 - **Countdown:** the two largest units, with a zero remainder dropped: `47m`, `2h13m`, `3d4h`, `1d`.
 - **Colours:**
-  - The bar and percentage use the ok, warn or crit colour, at `< warn_at`, `≥ warn_at` and `≥ crit_at`.
-  - The provider label uses the text colour.
+  - The progress bar and percentage use the ok, warn or crit colour, at `< warn_at`, `≥ warn_at` and `≥ crit_at`.
+  - The provider label uses the text colour (at step 4, the usage colour instead).
   - The window label, countdown and separator use the dim colour.
+
+### Steps
+
+From [How should each step look, and at which widths?](https://github.com/isenthamiz/tmux-ai-usage/issues/38). Every shown provider is drawn at the same step.
+
+| Step | Client width (default) | Rendering (three providers) | Cols |
+|---|---|---|---|
+| full | ≥ 180 | `cl 5h ▰▱▱▱▱ 3h58m │ cx wk ▰▰▰▱▱ 1d14h │ cu wk ▰▰▰▰▰ 1d23h` | 57 |
+| 1 | ≥ 140 | `cl ▰▱▱▱▱ 3h58m │ cx ▰▰▰▱▱ 1d14h │ cu ▰▰▰▰▰ 1d23h` (window label dropped) | 48 |
+| 2 | ≥ 110 | `cl ▰▱▱▱▱ cx ▰▰▰▱▱ cu ▰▰▰▰▰ 1d23h` (countdown only when crit) | 32 |
+| 3 | ≥ 80 | `cl 16% cx 66% cu 100% 1d23h` (percentage replaces the progress bar; countdown only when crit) | 27 |
+| 4 | < 80 | `cl cx cu`, each label in its usage colour | 8 |
+
+- The full step shows the progress bar and **no** percentage.
+- **Separator:** `@ai_usage_separator` (default ` │ `) at full and step 1; a single space at steps 2–4.
+- **Choosing the step:** `render.sh` prints one nested tmux format, `#{?#{e|>=:#{client_width},180},<full>,#{?#{e|>=:#{client_width},140},<step 1>,…}}`, holding every step's text. tmux re-expands `#()` output as a format on every redraw, per client, so each attached client gets its own step with no stale width after a resize (from [Can the renderer learn the tmux client width?](https://github.com/isenthamiz/tmux-ai-usage/issues/36)). Step text must contain no literal commas or unbalanced braces.
+- `@ai_usage_step` forces one step; on tmux < 3.2 (no `e|>=:`), `auto` renders the full step.
+
+### Rotation and focus
+
+From [How do rotation and focus behave?](https://github.com/isenthamiz/tmux-ai-usage/issues/41). Both are opt-in and act on `#{ai_usage}` only; a per-provider token always shows its provider.
+
+- **Rotation** (`@ai_usage_rotate on`): one provider at a time, cycling through the enabled providers in order. The provider shown is `index = floor(now / interval) mod n`, so every client agrees and nothing is stored. The interval (default 10 s) is rounded up to whole `status-interval` ticks. Every provider gets an equal turn, whatever its usage or state. One enabled provider means no rotation.
+- **Focus** (`@ai_usage_focus on`): when the active pane runs an AI agent whose provider is enabled, only that provider is shown, overriding the side-by-side view and rotation. Otherwise the usual view shows. Other providers' problems are not surfaced while focused.
+- **Detecting the agent** (from [What does tmux report as the running command for each AI agent?](https://github.com/isenthamiz/tmux-ai-usage/issues/37)): with focus on, the token is rewritten to `#('…/render.sh' all #{q:pane_current_command} #{q:pane_tty})`; a pane switch re-runs it at once.
+  - `codex` → Codex. `claude`, `claude.exe`, or a version string like `2.1.328` → Claude.
+  - `node` or a shell name → one `ps -t <pane_tty> -o args=` call; a `cursor-agent` path → Cursor, a `claude` path → Claude, a `codex` path → Codex.
+  - Anything else → no focus.
+- Steps apply to the single provider like everywhere else.
 
 ### States
 
-From [How are stale, missing, and failed readings shown?](https://github.com/isenthamiz/tmux-ai-usage/issues/9).
+From [How are stale, missing, and failed readings shown?](https://github.com/isenthamiz/tmux-ai-usage/issues/9) and, per step, [How do problem states render at each step?](https://github.com/isenthamiz/tmux-ai-usage/issues/39).
 
-| State | Rendering |
-|---|---|
-| `ok`, fresh; or `error` that isn't yet stale (last good value, unmarked) | `cx 5h ▰▰▰▰▱ 81% 47m` |
-| `pending` | `cl …`, all dim |
-| `stale`, whatever the cause | the last good piece, all dim, with `~` before the percentage: `cx 5h ▰▰▰▰▱ ~81% 47m` |
-| `signed_out` / `missing_dep` / `bad_shape` (shown immediately, no last good value) | `cl !login` / `cx !deps` / `cu !format` in the crit colour |
-| `error` with no last good value ever | `cl !error` in the crit colour |
+| State | full | step 1 | step 2 | step 3 | step 4 |
+|---|---|---|---|---|---|
+| `ok`, fresh; or `error` that isn't yet stale (last good value, unmarked) | `cx 5h ▰▰▰▰▱ 47m` | `cx ▰▰▰▰▱ 47m` | `cx ▰▰▰▰▱` | `cx 81%` | `cx` in its usage colour |
+| `stale`, whatever the cause (all dim) | `cx 5h ~▰▰▰▰▱ 47m` | `cx ~▰▰▰▰▱ 47m` | `cx ~▰▰▰▰▱` | `cx ~81%` | `cx` dim, no `~` |
+| `signed_out` / `missing_dep` / `bad_shape` (crit colour, no last good value) | `cl !login` / `cx !deps` / `cu !format` | same | same | same | `cl!` |
+| `error` with no last good value ever (crit colour) | `cl !error` | same | same | same | `cl!` |
+| `pending` (all dim) | `cl …` | same | same | same | `cl` |
 
-A provider never disappears from `#{ai_usage}`; it keeps its position and separator. The words, `~` and `…` are fixed in v1.
+- `~` sits immediately before whatever shows usage at that step.
+- At step 4, `cl!` keeps "action needed" distinct from a crit-coloured label meaning high usage.
+- A passed reset shows 0% with no countdown.
+
+A provider never disappears from the side-by-side `#{ai_usage}`; it keeps its position and separator. The words, `~` and `…` are fixed.
+
+### Details popup
+
+From [How should the details popup look and open?](https://github.com/isenthamiz/tmux-ai-usage/issues/42). The prototype is on the `prototype/details-popup` branch.
+
+- **Opens** on `prefix + <@ai_usage_details_key>` (default `u`; empty binds nothing) as `display-popup -E -w 80% -h 60% -T " AI usage "`; `q` or `Esc` closes it.
+- **Reads** cached usage snapshots only, like the status line.
+- **Table layout:** one row per quota window, every enabled provider, most-used first: provider, window label, 10-cell progress bar, percentage, countdown, and reset as local clock time (`Thu 22:39`). Below ~60 columns it switches to one line per provider (`Claude  5h 19% 3h39m  wk 0% 6d23h`).
+- **Problems in words**, under the provider, using the status-line marker plus the fix:
+  - `!login`: Claude "Run `claude` in a terminal and log in."; Codex "Run `codex login`."; Cursor "Open the Cursor app and sign in."
+  - `!deps`: "Something it needs is missing. Run doctor.sh to see what."
+  - `!format`: "The provider answered in a format the plugin doesn't know. The plugin may need an update."
+  - `!error`: "Temporary error; retrying automatically."
+  - Stale: "~ last good reading 2h ago; numbers may be out of date".
 
 ## Options
 
-From [What tmux options configure the plugin?](https://github.com/isenthamiz/tmux-ai-usage/issues/7), plus `@ai_usage_stale_after` from [How are stale, missing, and failed readings shown?](https://github.com/isenthamiz/tmux-ai-usage/issues/9).
+From [What tmux options configure the plugin?](https://github.com/isenthamiz/tmux-ai-usage/issues/7), plus `@ai_usage_stale_after` from [How are stale, missing, and failed readings shown?](https://github.com/isenthamiz/tmux-ai-usage/issues/9), and the step, rotation, focus and details options from [Which options control steps and the single view?](https://github.com/isenthamiz/tmux-ai-usage/issues/40) and [How should the details popup look and open?](https://github.com/isenthamiz/tmux-ai-usage/issues/42).
 
 | Option | Type / validation | Default |
 |---|---|---|
 | `@ai_usage_providers` | space-separated subset of `claude codex cursor`; sets order for `#{ai_usage}` | `claude codex cursor` |
 | `@ai_usage_<provider>_window` | `auto` or a window label; a missing label falls back to `auto` | `auto` |
-| `@ai_usage_bar_width` | integer ≥ 0 (`0` = percentage only) | `5` |
+| `@ai_usage_bar_width` | integer ≥ 0 (`0` = percentage in place of the progress bar at every step) | `5` |
 | `@ai_usage_bar_filled` / `@ai_usage_bar_empty` | string | `▰` / `▱` |
 | `@ai_usage_warn_at` / `@ai_usage_crit_at` | integer 0–100, warn < crit | `60` / `85` |
 | `@ai_usage_ok_color` / `_warn_color` / `_crit_color` | tmux colour | `@thm_green` / `@thm_yellow` / `@thm_red`, else `#a6e3a1` / `#f9e2af` / `#f38ba8` |
 | `@ai_usage_text_color` / `_dim_color` | tmux colour | `@thm_subtext_0` / `@thm_overlay_0`, else `#bac2de` / `#6c7086` |
 | `@ai_usage_claude_label` / `_codex_label` / `_cursor_label` | string | `cl` / `cx` / `cu` |
-| `@ai_usage_separator` | string | ` │ ` |
+| `@ai_usage_separator` | string; used at full and step 1 (steps 2–4 use one space) | ` │ ` |
+| `@ai_usage_step_widths` | four descending integers: minimum client width for full, step 1, step 2, step 3 | `180 140 110 80` |
+| `@ai_usage_step` | `auto`, `full`, `1`, `2`, `3`, `4` | `auto` |
+| `@ai_usage_rotate` | `off`, `on` | `off` |
+| `@ai_usage_rotate_interval` | integer seconds, rounded up to whole `status-interval` ticks | `10` |
+| `@ai_usage_focus` | `off`, `on` | `off` |
+| `@ai_usage_details_key` | a key for `bind-key` in the prefix table; empty binds nothing | `u` |
 | `@ai_usage_refresh_interval` | integer seconds; values below 60 are raised to 60 | `60` |
 | `@ai_usage_stale_after` | integer seconds, ≥ refresh interval | `900` |
 | `@ai_usage_cache_dir` | path; created with mode 700 | `${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage` |
 
-A per-provider token renders whether or not that provider is in `@ai_usage_providers`.
+A per-provider token renders whether or not that provider is in `@ai_usage_providers`. It follows the step but ignores rotation and focus.
+
+`@ai_usage_focus` and `@ai_usage_details_key` are read when the plugin loads (they change the token rewrite and the key table), so changing them needs a reload; every other option applies on the next redraw.
 
 ## Diagnostics
 
@@ -236,6 +294,8 @@ From [How are fetchers and the renderer tested?](https://github.com/isenthamiz/t
   - One malformed fixture per provider.
 - **Acquire scripts:** tested through PATH shims (fake `curl` / `claude` / `security` / `sqlite3`), for failure paths only.
 - **Renderer:** a shimmed `tmux` answers `show-options`, the clock is injected with `AI_USAGE_NOW=<epoch>`, and outputs are compared as exact strings, including `#[fg=…]` markup.
+- **Steps, rotation, focus:** the renderer's output for every step is compared as exact strings; rotation is tested by moving `AI_USAGE_NOW`; focus by passing pane command and tty arguments with a shimmed `ps`.
+- **Details popup:** `details.sh` output with colours stripped, against the same fixtures and clock.
 - **Refresh lock:**
   - A fresh snapshot starts no refresh.
   - A stale snapshot returns the cached value and starts exactly one refresh.
@@ -244,7 +304,7 @@ From [How are fetchers and the renderer tested?](https://github.com/isenthamiz/t
 ## README must cover
 
 - TPM install: `set -g @plugin 'isenthamiz/tmux-ai-usage'`. List it after the theme plugin, so the tokens are already in `status-right` when it loads.
-- Token placement and the option table.
+- Token placement and the option table, with the steps, rotation, focus and the details popup key.
 - Dependencies per provider:
   - `jq` always.
   - Claude: the `claude` CLI, signed in.
@@ -252,4 +312,5 @@ From [How are fetchers and the renderer tested?](https://github.com/isenthamiz/t
   - Cursor: `curl`, `sqlite3`, `security`, Homebrew `openssl@3`, plus the Cursor app signed in.
 - Cursor's one-time Keychain "Always Allow".
 - **What it reads:** every file and endpoint, all read-only. Tokens are never refreshed and never written to the cache.
-- `doctor.sh`, with an optional `bind-key … run-shell` line.
+- `doctor.sh`, with an optional `bind-key … run-shell` line on a key other than the details key.
+- tmux ≥ 3.2 for width-aware steps.
