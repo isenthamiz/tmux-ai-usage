@@ -1,3 +1,7 @@
+#!/usr/bin/env bats
+# wait_for conditions are single-quoted on purpose: they are evaluated when polled.
+# Each @test runs in its own subshell, so per-test exports are meant to be local.
+# shellcheck disable=SC2016,SC2030,SC2031
 load test_helper
 
 setup() { setup_env; setup_codex primary-secondary; }
@@ -56,4 +60,33 @@ NOW=1795074751
   AI_USAGE_NOW=$NOW run render codex
   wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
   [ "$(curl_calls)" = 1 ]
+}
+
+@test "concurrent renders breaking a dead owner's lock still start one refresh" {
+  seed_snapshot primary-only $((NOW - 120))
+  sh -c 'exit 0' & dead=$!; wait $dead
+  mkdir "$CACHE/codex.lock" && echo "$dead" > "$CACHE/codex.lock/pid"
+  export CURL_SHIM_DELAY=1
+  for _ in 1 2 3 4 5 6 7 8; do AI_USAGE_NOW=$NOW render codex >/dev/null & done
+  wait
+  wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
+  wait_for refresh_idle
+  sleep 1.5
+  [ "$(curl_calls)" = 1 ] || { echo "curl called $(curl_calls) times"; return 1; }
+}
+
+@test "a malformed response keeps the last good windows and records bad_shape" {
+  seed_snapshot primary-only $((NOW - 120))
+  export CURL_SHIM_RESPONSE="$FIXTURES/codex/malformed.json"
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
+  [ "$(jq -c '{status, ok_at, labels: [.windows[].label]}' "$CACHE/codex.json")" = "{\"status\":\"bad_shape\",\"ok_at\":$((NOW - 120)),\"labels\":[\"wk\"]}" ]
+}
+
+@test "a failed fetch keeps the last good windows and is not retried for a refresh interval" {
+  seed_snapshot primary-only $((NOW - 120))
+  export CURL_SHIM_EXIT=22
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
+  [ "$(jq -c '{status, ok_at, retry_at, labels: [.windows[].label]}' "$CACHE/codex.json")" = "{\"status\":\"error\",\"ok_at\":$((NOW - 120)),\"retry_at\":$((NOW + 60)),\"labels\":[\"wk\"]}" ]
 }

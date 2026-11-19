@@ -1,5 +1,6 @@
 # shellcheck shell=bash
-# Pieces of a usage bar. Pure functions: no tmux, no I/O.
+# Pieces of a usage bar. No tmux, no I/O. usage_color reads the colour and
+# threshold globals that load_options sets.
 
 # Compact countdown: the two largest units, dropping a zero remainder.
 # 2820 -> 47m, 7980 -> 2h13m, 274000 -> 3d4h, 86400 -> 1d.
@@ -18,7 +19,7 @@ countdown() {
 
 # Bar of $3 cells, filled = round(pct * width / 100). Glyphs are passed whole, so
 # multibyte characters are never sliced (safe under the C locale).
-bar() { # pct width filled empty
+bar() { # used_pct width filled empty
   local pct=$1 width=$2 filled i out=""
   filled=$(( (pct * width + 50) / 100 ))
   [ "$filled" -gt "$width" ] && filled=$width
@@ -28,7 +29,7 @@ bar() { # pct width filled empty
   echo "$out"
 }
 
-usage_color() { # pct
+usage_color() { # used_pct
   if [ "$1" -ge "$CRIT_AT" ]; then echo "$COLOR_CRIT"
   elif [ "$1" -ge "$WARN_AT" ]; then echo "$COLOR_WARN"
   else echo "$COLOR_OK"

@@ -16,8 +16,8 @@ snapshot=$(snapshot_path "$provider")
 load_options
 
 # One jq call: when the snapshot was fetched, and its most-used window.
-fetched_at="" label="" pct="" resets_at=""
-[ -f "$snapshot" ] && IFS=$'\t' read -r fetched_at label pct resets_at < <(
+fetched_at="" window_label="" used_pct="" resets_at=""
+[ -f "$snapshot" ] && IFS=$'\t' read -r fetched_at window_label used_pct resets_at < <(
   jq -r '[.fetched_at, (.windows | max_by(.used_pct) // {} | .label, .used_pct, .resets_at)] | @tsv' "$snapshot"
 )
 
@@ -25,10 +25,10 @@ fetched_at="" label="" pct="" resets_at=""
 if [ -z "$fetched_at" ] || [ $((now - fetched_at)) -ge "$REFRESH_INTERVAL" ]; then
   ( "$DIR/refresh.sh" "$provider" </dev/null >/dev/null 2>&1 & )
 fi
-[ -n "$label" ] || exit 0
+[ -n "$window_label" ] || exit 0
 
-color=$(usage_color "$pct")
+color=$(usage_color "$used_pct")
 printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s%% #[fg=%s]%s#[fg=default]\n' \
-  "$COLOR_TEXT" "$CODEX_LABEL" "$COLOR_DIM" "$label" \
-  "$color" "$(bar "$pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")" "$pct" \
+  "$COLOR_TEXT" "$CODEX_LABEL" "$COLOR_DIM" "$window_label" \
+  "$color" "$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")" "$used_pct" \
   "$COLOR_DIM" "$(countdown $((resets_at - now)))"

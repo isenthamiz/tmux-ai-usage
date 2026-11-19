@@ -1,3 +1,6 @@
+#!/usr/bin/env bats
+# Each @test runs in its own subshell; bats' run sets $output there on purpose.
+# shellcheck disable=SC2030,SC2031
 load test_helper
 
 setup() { setup_env; }
@@ -62,10 +65,10 @@ countdown_part() { sed -E 's/^.*#\[fg=[^]]*\]([^#]*)#\[fg=default\]$/\1/' <<<"$o
 
 @test "the countdown shows the two largest units and drops a zero remainder" {
   for case in "2820 47m" "7980 2h13m" "274000 3d4h" "86400 1d" "3600 1h" "59 0m"; do
-    set -- $case
-    seed_window 5h 10 $((NOW + $1))
+    read -r secs want <<<"$case"
+    seed_window 5h 10 $((NOW + secs))
     AI_USAGE_NOW=$NOW run render codex
-    [ "$(countdown_part)" = "$2" ] || { echo "for $1 s: got '$(countdown_part)', want '$2'"; return 1; }
+    [ "$(countdown_part)" = "$want" ] || { echo "for $secs s: got '$(countdown_part)', want '$want'"; return 1; }
   done
 }
 

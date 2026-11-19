@@ -1,7 +1,12 @@
 #!/bin/bash
 # Test double for curl. Consumes stdin (curl --config -), records one line per call
-# in $CURL_SHIM_LOG, waits $CURL_SHIM_DELAY seconds, then prints $CURL_SHIM_RESPONSE.
+# in $CURL_SHIM_LOG, waits $CURL_SHIM_DELAY seconds, then prints $CURL_SHIM_RESPONSE,
+# or fails with exit code $CURL_SHIM_EXIT when that is set.
 cat >/dev/null
 echo "call" >> "${CURL_SHIM_LOG:?}"
 sleep "${CURL_SHIM_DELAY:-0}"
+if [ -n "$CURL_SHIM_EXIT" ]; then
+  echo "curl: (22) The requested URL returned error: 500" >&2
+  exit "$CURL_SHIM_EXIT"
+fi
 cat "${CURL_SHIM_RESPONSE:?}"

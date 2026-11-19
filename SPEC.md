@@ -35,6 +35,7 @@ scripts/
   doctor.sh                   # diagnostic (reads snapshots only)
   smoke.sh                    # manual live check (fetches)
   lib/{options,snapshot,format,lock}.sh
+  lib/labels.jq               # window label from window length, shared by normalizers
   providers/<provider>/acquire.sh
   providers/<provider>/normalize.jq
 test/*.bats  test/fixtures/<provider>/  test/shims/

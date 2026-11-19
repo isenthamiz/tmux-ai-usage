@@ -1,10 +1,10 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # TPM entrypoint: replaces the plugin's tokens in status-left/right with #() calls.
-CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 interpolate() {
   local value=$1
-  value=${value//\#\{ai_usage_codex\}/#(\'$CURRENT_DIR/scripts/render.sh\' codex)}
+  value=${value//\#\{ai_usage_codex\}/#(\'$DIR/scripts/render.sh\' codex)}
   printf '%s' "$value"
 }
 
