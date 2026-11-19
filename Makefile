@@ -1,4 +1,4 @@
-SHELL_FILES := ai_usage.tmux $(shell find scripts test/shims -type f \( -name '*.sh' -o -path 'test/shims/*' \)) test/test_helper.bash $(wildcard test/*.bats)
+SHELL_FILES := ai_usage.tmux $(shell find scripts test/shims -type f \( -name '*.sh' -o -name 'jq' -o -path 'test/shims/*' \) ! -name '.keep') test/test_helper.bash $(wildcard test/*.bats)
 
 .PHONY: test lint unit
 

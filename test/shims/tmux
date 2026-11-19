@@ -1,10 +1,34 @@
 #!/bin/bash
 # Test double for tmux. `show-options -g` prints $TMUX_SHIM_OPTIONS (a file in
 # real `tmux show-options -g` format); every call is appended to $TMUX_SHIM_LOG.
-[ -n "$TMUX_SHIM_LOG" ] && echo "$*" >> "$TMUX_SHIM_LOG"
+[ -n "$TMUX_SHIM_LOG" ] && echo "$*" >>"$TMUX_SHIM_LOG"
+
+_show_opts_file() {
+  [ -n "$TMUX_SHIM_OPTIONS" ] && [ -f "$TMUX_SHIM_OPTIONS" ] && cat "$TMUX_SHIM_OPTIONS"
+}
+
 case "$1" in
   show-options|show)
-    [ -n "$TMUX_SHIM_OPTIONS" ] && [ -f "$TMUX_SHIM_OPTIONS" ] && cat "$TMUX_SHIM_OPTIONS"
+    shift || true
+    if [ "${1:-}" = -gqv ] && [ -n "${2:-}" ]; then
+      _show_opts_file | awk -v want="$2" '$1 == want { $1=""; sub(/^ /,""); print; exit }'
+    elif [ "${1:-}" = -g ] || [ "${1:-}" = -gqv ]; then
+      _show_opts_file
+    else
+      _show_opts_file
+    fi
+    ;;
+  show-option)
+    shift || true
+  if [ "${1:-}" = -gqv ] && [ -n "${2:-}" ]; then
+      _show_opts_file | awk -v want="$2" '$1 == want { $1=""; sub(/^ /,""); print; exit }'
+    fi
+    ;;
+  set-option)
+    [ -n "$TMUX_SHIM_SET_LOG" ] && echo "$*" >>"$TMUX_SHIM_SET_LOG"
+    ;;
+  display-message)
+    [ -n "$TMUX_SHIM_MSG_LOG" ] && echo "${*:2}" >>"$TMUX_SHIM_MSG_LOG"
     ;;
 esac
 exit 0

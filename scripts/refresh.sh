@@ -15,6 +15,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 provider=$1
 now=${AI_USAGE_NOW:-$(date +%s)}
+load_options
 cache=$(cache_dir)
 snapshot=$(snapshot_path "$provider")
 lock="$cache/$provider.lock"
@@ -32,8 +33,6 @@ _write_merged() {
 mkdir -p "$cache" && chmod 700 "$cache"
 lock_acquire "$lock" || exit 0
 trap 'lock_release "$lock"' EXIT
-
-load_options
 
 retry_at=$(jq -r '.retry_at // 0' "$snapshot" 2>/dev/null || echo 0)
 [ "$now" -lt "${retry_at:-0}" ] && exit 0

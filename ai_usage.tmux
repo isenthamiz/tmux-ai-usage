@@ -1,8 +1,10 @@
 #!/bin/bash
-# TPM entrypoint: replaces the plugin's tokens in status-left/right with #() calls.
+# TPM entrypoint: validate options, check jq, replace the plugin's tokens in status-left/right with #() calls.
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/validate.sh
+. "$DIR/scripts/lib/validate.sh"
 
-interpolate() {
+interpolate_cmd() {
   local value=$1
   value=${value//\#\{ai_usage\}/#(\'$DIR/scripts/render.sh\' all)}
   value=${value//\#\{ai_usage_claude\}/#(\'$DIR/scripts/render.sh\' claude)}
@@ -11,7 +13,29 @@ interpolate() {
   printf '%s' "$value"
 }
 
+interpolate_jq_missing() {
+  local value=$1 crit=$2
+  local token='#[fg='"$crit"']!jq'
+  value=${value//\#\{ai_usage\}/$token}
+  value=${value//\#\{ai_usage_claude\}/$token}
+  value=${value//\#\{ai_usage_codex\}/$token}
+  value=${value//\#\{ai_usage_cursor\}/$token}
+  printf '%s' "$value"
+}
+
+validate_ai_usage_options
+
+if ! command -v jq >/dev/null 2>&1 || ! jq -n null >/dev/null 2>&1; then
+  tmux display-message 'tmux-ai-usage: jq not found'
+  crit=$(_crit_colour_at_load)
+  for option in status-left status-right; do
+    value=$(tmux show-option -gqv "$option")
+    tmux set-option -gq "$option" "$(interpolate_jq_missing "$value" "$crit")"
+  done
+  exit 0
+fi
+
 for option in status-left status-right; do
   value=$(tmux show-option -gqv "$option")
-  tmux set-option -gq "$option" "$(interpolate "$value")"
+  tmux set-option -gq "$option" "$(interpolate_cmd "$value")"
 done

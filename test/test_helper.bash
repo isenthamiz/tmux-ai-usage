@@ -8,6 +8,7 @@ canon() { jq -S -c . "$@"; }
 # Isolated environment per test: shimmed tmux on PATH, private cache dir.
 setup_env() {
   export PATH="$ROOT/test/shims:$PATH"
+  export JQ_SHIM_LOG=""
   export XDG_CACHE_HOME="$BATS_TEST_TMPDIR/cache"
   export TMUX_SHIM_OPTIONS="$BATS_TEST_TMPDIR/tmux-options"
   export TMUX_SHIM_LOG="$BATS_TEST_TMPDIR/tmux.log"

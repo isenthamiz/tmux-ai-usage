@@ -12,14 +12,27 @@ _valid_providers() {
   if [ -n "$have" ]; then echo "$have"; else echo "claude codex cursor"; fi
 }
 
+_finalize_loaded_options() {
+  local def_cache="${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage"
+
+  if [ "${WARN_AT:-60}" -ge "${CRIT_AT:-85}" ]; then
+    WARN_AT=60
+    CRIT_AT=85
+  fi
+  if [ "${STALE_AFTER:-900}" -lt "${REFRESH_INTERVAL:-60}" ]; then
+    STALE_AFTER=900
+  fi
+  CACHE_DIR=${CACHE_DIR:-$def_cache}
+}
+
 load_options() {
   local line name value thm_green="" thm_yellow="" thm_red="" thm_text="" thm_dim=""
   local raw_providers="claude codex cursor"
+  local ri=60
   SEPARATOR=' │ '
   CLAUDE_WINDOW=auto
   CODEX_WINDOW=auto
   CURSOR_WINDOW=auto
-  CURSOR_LABEL=cu
 
   while IFS= read -r line; do
     name=${line%% *}
@@ -34,9 +47,9 @@ load_options() {
       @thm_overlay_0) thm_dim=$value ;;
       @ai_usage_providers) raw_providers=$value ;;
       @ai_usage_separator) SEPARATOR=$value ;;
-      @ai_usage_claude_window) CLAUDE_WINDOW=$value ;;
-      @ai_usage_codex_window) CODEX_WINDOW=$value ;;
-      @ai_usage_cursor_window) CURSOR_WINDOW=$value ;;
+      @ai_usage_claude_window) CLAUDE_WINDOW=${value:-auto} ;;
+      @ai_usage_codex_window) CODEX_WINDOW=${value:-auto} ;;
+      @ai_usage_cursor_window) CURSOR_WINDOW=${value:-auto} ;;
       @ai_usage_bar_width)
         case $value in ''|*[!0-9]*) ;;
         *) BAR_WIDTH=$value ;;
@@ -67,6 +80,8 @@ load_options() {
         case $value in ''|*[!0-9]*) ;;
         *) STALE_AFTER=$value ;;
         esac ;;
+      @ai_usage_cache_dir)
+        [ -n "$value" ] && CACHE_DIR=$value ;;
     esac
   done <<<"$(tmux show-options -g 2>/dev/null)"
 
@@ -86,6 +101,9 @@ load_options() {
   STALE_AFTER=${STALE_AFTER:-900}
   CLAUDE_LABEL=${CLAUDE_LABEL:-cl}
   CODEX_LABEL=${CODEX_LABEL:-cx}
+  CURSOR_LABEL=${CURSOR_LABEL:-cu}
+
+  _finalize_loaded_options
 }
 
 window_pin_for() {
@@ -104,4 +122,10 @@ provider_label_for() {
     cursor) echo "$CURSOR_LABEL" ;;
     *) echo "$1" ;;
   esac
+}
+
+snapshot_json_for() {
+  local p=$1 path
+  path=$(snapshot_path "$p")
+  if [ -f "$path" ]; then cat "$path"; else printf 'null'; fi
 }
