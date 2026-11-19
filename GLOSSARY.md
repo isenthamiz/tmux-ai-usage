@@ -1,0 +1,13 @@
+# Glossary
+
+**Provider**: An AI coding agent whose plan quota the plugin reports on: Claude, Codex, or Cursor. One account per provider.
+
+**Plan quota**: The usage allowance granted by a provider's subscription plan, measured within a quota window. Distinct from *spend* (money or tokens against a self-set budget) and *session context* (how full one conversation's context window is), neither of which the plugin reports.
+
+**Quota window**: A period over which a plan quota is measured and after which it resets (e.g. a rolling 5-hour window, a weekly window, a monthly billing cycle). A provider may have several concurrent windows.
+
+**Usage**: The fraction of a quota window's plan quota consumed so far.
+
+**Reset**: The moment a quota window's usage returns to zero.
+
+**Usage bar**: The status-line rendering of one quota window's usage, together with time until reset.
