@@ -6,9 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 tmux-ai-usage is a TPM (tmux plugin manager) plugin that shows plan-quota usage bars for AI coding agents (Claude, Codex, Cursor) in the tmux status line. It is configured through tmux options.
 
-## Status: spec complete, no code yet
+## Status: v1 under construction
 
-There are no build, lint, or test commands yet. `SPEC.md` is the build-ready v1 spec: architecture, file tree, usage-snapshot format, per-provider data sources, look, options and testing. Build from it, and don't reopen a decision it records without asking.
+`SPEC.md` is the build-ready v1 spec: architecture, file tree, usage-snapshot format, per-provider data sources, look, options and testing. Build from it, and don't reopen a decision it records without asking. The implementation work is tracked as GitHub issues labelled `ready-for-agent`.
+
+## Commands
+
+- `make test`: shellcheck on every script and test file, then the bats suite. Dev dependencies: `brew install bats-core shellcheck jq`.
+- `make lint` / `make unit`: either half on its own.
+- `bats test/render.bats`: one test file. `bats -f '<name regex>' test/refresh.bats`: one test.
+
+All scripts must run on macOS `/bin/bash` 3.2. Tests run only at the seams `SPEC.md` names: each provider's `normalize.jq` against fixtures, and `scripts/render.sh` behind PATH shims in `test/shims/`, with the clock injected through `AI_USAGE_NOW`.
 
 Each section of `SPEC.md` links the closed GitHub issue that holds the reasoning behind it. The issues are indexed by the wayfinder map, the issue labelled `wayfinder:map`.
 
