@@ -23,6 +23,7 @@ seed_snapshot() { # fixture fetched_at
 }
 
 render() { "$ROOT/scripts/render.sh" "$@"; }
+refresh() { "$ROOT/scripts/refresh.sh" "$@"; }
 
 # Write a codex snapshot holding a single window. fetched_at defaults to $NOW.
 seed_window() { # label used_pct resets_at [fetched_at]
@@ -55,3 +56,15 @@ wait_for() { # command [seconds]
 
 # True once no refresh holds the codex lock.
 refresh_idle() { [ ! -d "$CACHE/codex.lock" ]; }
+
+# Merge fields into the codex snapshot on disk.
+patch_snapshot() { jq "$@" "$CACHE/codex.json" >"$CACHE/codex.json.tmp" && mv "$CACHE/codex.json.tmp" "$CACHE/codex.json"; }
+
+# Usage snapshot with a non-ok status and optional windows from a prior good reading.
+seed_status() { # status [ok_at]
+  local st=$1 oat=${2:-null}
+  jq -n --arg p codex --arg st "$st" --argjson now "${NOW:-0}" --argjson oat "$oat" \
+    '{provider:$p,status:$st,fetched_at:$now,ok_at:$oat,retry_at:$now,error:"test",
+      windows:(if $oat == null then [] else [{label:"wk",used_pct:66,resets_at:($now+7200),window_seconds:604800}] end)}' \
+    > "$CACHE/codex.json"
+}

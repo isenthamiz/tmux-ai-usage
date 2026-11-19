@@ -15,20 +15,97 @@ snapshot=$(snapshot_path "$provider")
 
 load_options
 
-# One jq call: when the snapshot was fetched, and its most-used window.
-fetched_at="" window_label="" used_pct="" resets_at=""
-[ -f "$snapshot" ] && IFS=$'\t' read -r fetched_at window_label used_pct resets_at < <(
-  jq -r '[.fetched_at, (.windows | max_by(.used_pct) // {} | .label, .used_pct, .resets_at)] | @tsv' "$snapshot"
+maybe_start_refresh() {
+  local fetched=${1:-0} retry=${2:-0}
+  if [ ! -f "$snapshot" ] || { [ "$now" -ge "${retry:-0}" ] &&
+      [ $((now - fetched)) -ge "$REFRESH_INTERVAL" ]; }; then
+    ( "$DIR/refresh.sh" "$provider" </dev/null >/dev/null 2>&1 & )
+  fi
+}
+
+if [ ! -f "$snapshot" ]; then
+  maybe_start_refresh 0 0
+  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+  exit 0
+fi
+
+# One jq call: status, ages, and the selected window (max used_pct).
+read -r status fetched_at ok_at retry_at window_label used_pct resets_at has_windows < <(
+  jq -r --argjson now "$now" '
+    (.status // "error") as $st
+    | (.fetched_at // 0) as $fa
+    | (.ok_at // 0) as $oa
+    | (.retry_at // 0) as $ra
+    | (.windows | if length == 0 then null else max_by(.used_pct) end) as $w
+    | [
+        $st, $fa, $oa, $ra,
+        ($w.label // ""), ($w.used_pct // 0), ($w.resets_at // 0),
+        (if (.windows | length) > 0 then 1 else 0 end)
+      ] | @tsv
+  ' "$snapshot"
 )
 
-# Stale-while-revalidate: start a detached refresh, then draw what's cached.
-if [ -z "$fetched_at" ] || [ $((now - fetched_at)) -ge "$REFRESH_INTERVAL" ]; then
-  ( "$DIR/refresh.sh" "$provider" </dev/null >/dev/null 2>&1 & )
-fi
-[ -n "$window_label" ] || exit 0
+maybe_start_refresh "${fetched_at:-0}" "${retry_at:-0}"
 
-color=$(usage_color "$used_pct")
-printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s%% #[fg=%s]%s#[fg=default]\n' \
-  "$COLOR_TEXT" "$CODEX_LABEL" "$COLOR_DIM" "$window_label" \
-  "$color" "$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")" "$used_pct" \
-  "$COLOR_DIM" "$(countdown $((resets_at - now)))"
+case $status in
+  signed_out)
+    printf '#[fg=%s]%s !login#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    exit 0 ;;
+  missing_dep)
+    printf '#[fg=%s]%s !deps#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    exit 0 ;;
+  bad_shape)
+    printf '#[fg=%s]%s !format#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+    exit 0 ;;
+esac
+
+if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ]; then
+  if [ "$status" = error ]; then
+    printf '#[fg=%s]%s !error#[fg=default]\n' "$COLOR_CRIT" "$CODEX_LABEL"
+  else
+    printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+  fi
+  exit 0
+fi
+
+# Pending: no successful reading yet, but windows present should not happen; treat as pending.
+if [ -z "${ok_at:-}" ] || [ "$ok_at" = 0 ]; then
+  printf '#[fg=%s]%s …#[fg=default]\n' "$COLOR_DIM" "$CODEX_LABEL"
+  exit 0
+fi
+
+if [ "${resets_at:-0}" -le "$now" ]; then
+  used_pct=0
+  countdown_str=""
+else
+  countdown_str=$(countdown $((resets_at - now)))
+fi
+
+stale=0
+if [ $((now - ok_at)) -gt "$STALE_AFTER" ]; then
+  stale=1
+fi
+
+label_color=$COLOR_TEXT
+dim_color=$COLOR_DIM
+bar_color=$(usage_color "$used_pct")
+tilde=""
+if [ "$stale" -eq 1 ]; then
+  label_color=$COLOR_DIM
+  dim_color=$COLOR_DIM
+  bar_color=$COLOR_DIM
+  tilde='~'
+fi
+
+pct="${tilde}${used_pct}%"
+bar=$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")
+
+if [ -n "$countdown_str" ]; then
+  printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s #[fg=%s]%s#[fg=default]\n' \
+    "$label_color" "$CODEX_LABEL" "$dim_color" "$window_label" \
+    "$bar_color" "$bar" "$pct" "$dim_color" "$countdown_str"
+else
+  printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s#[fg=default]\n' \
+    "$label_color" "$CODEX_LABEL" "$dim_color" "$window_label" \
+    "$bar_color" "$bar" "$pct"
+fi

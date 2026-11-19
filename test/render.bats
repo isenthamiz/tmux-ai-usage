@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Each @test runs in its own subshell; bats' run sets $output there on purpose.
-# shellcheck disable=SC2030,SC2031
+# shellcheck disable=SC2030,SC2031,SC2016
 load test_helper
 
 setup() { setup_env; }
@@ -76,4 +76,54 @@ countdown_part() { sed -E 's/^.*#\[fg=[^]]*\]([^#]*)#\[fg=default\]$/\1/' <<<"$o
   seed_snapshot primary-only $NOW
   LC_ALL=C LANG=C AI_USAGE_NOW=$NOW run render codex
   [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ 66% #[fg=#6c7086]2d1h#[fg=default]' ]
+}
+
+@test "pending with no snapshot yet shows a dim ellipsis" {
+  rm -f "$CACHE/codex.json"
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#6c7086]cx …#[fg=default]' ]
+}
+
+@test "signed_out shows !login in the crit colour immediately" {
+  seed_status signed_out "$NOW"
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#f38ba8]cx !login#[fg=default]' ]
+}
+
+@test "missing_dep shows !deps in the crit colour immediately" {
+  seed_status missing_dep
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#f38ba8]cx !deps#[fg=default]' ]
+}
+
+@test "bad_shape shows !format in the crit colour immediately" {
+  seed_status bad_shape
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#f38ba8]cx !format#[fg=default]' ]
+}
+
+@test "error with no prior good reading shows !error in the crit colour" {
+  seed_status error
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#f38ba8]cx !error#[fg=default]' ]
+}
+
+@test "a transient error still shows the last good value unmarked" {
+  seed_snapshot primary-only $NOW
+  patch_snapshot --argjson now "$NOW" '.status = "error" | .fetched_at = $now'
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ 66% #[fg=#6c7086]2d1h#[fg=default]' ]
+}
+
+@test "a stale reading is dim with a tilde before the percentage" {
+  seed_snapshot primary-only $NOW
+  patch_snapshot --argjson ok $((NOW - 901)) '.ok_at = $ok'
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#6c7086]cx #[fg=#6c7086]wk #[fg=#6c7086]▰▰▰▱▱ ~66% #[fg=#6c7086]2d1h#[fg=default]' ]
+}
+
+@test "a window past its reset time shows 0% with no countdown" {
+  seed_window 5h 81 $((NOW - 120))
+  AI_USAGE_NOW=$NOW run render codex
+  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#a6e3a1]▱▱▱▱▱ 0%#[fg=default]' ]
 }

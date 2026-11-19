@@ -1,12 +1,38 @@
 #!/bin/bash
-# Test double for curl. Consumes stdin (curl --config -), records one line per call
-# in $CURL_SHIM_LOG, waits $CURL_SHIM_DELAY seconds, then prints $CURL_SHIM_RESPONSE,
-# or fails with exit code $CURL_SHIM_EXIT when that is set.
-cat >/dev/null
-echo "call" >> "${CURL_SHIM_LOG:?}"
+# Test double for curl. Records one line per call in $CURL_SHIM_LOG.
+# Env: CURL_SHIM_RESPONSE, CURL_SHIM_EXIT, CURL_SHIM_DELAY, CURL_SHIM_HTTP, CURL_SHIM_RETRY_AFTER.
+outfile="" hdrfile="" writefmt=0
+args=("$@")
+i=0
+while [ $i -lt ${#args[@]} ]; do
+  case "${args[$i]}" in
+    -o) outfile="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    -D) hdrfile="${args[$((i + 1))]}"; i=$((i + 2)) ;;
+    -w) writefmt=1; i=$((i + 2)) ;;
+    *) i=$((i + 1)) ;;
+  esac
+done
+[ "${BASH_SUBSHELL:-0}" -eq 0 ] && [ -n "${CURL_SHIM_LOG:-}" ] && echo call >>"$CURL_SHIM_LOG"
 sleep "${CURL_SHIM_DELAY:-0}"
+
 if [ -n "$CURL_SHIM_EXIT" ]; then
-  echo "curl: (22) The requested URL returned error: 500" >&2
+  echo "curl: (${CURL_SHIM_EXIT}) simulated failure" >&2
   exit "$CURL_SHIM_EXIT"
 fi
-cat "${CURL_SHIM_RESPONSE:?}"
+
+http="${CURL_SHIM_HTTP:-200}"
+if [ -n "$hdrfile" ]; then
+  {
+    printf 'HTTP/1.1 %s\r\n' "$http"
+    [ -n "${CURL_SHIM_RETRY_AFTER:-}" ] && printf 'Retry-After: %s\r\n' "$CURL_SHIM_RETRY_AFTER"
+    printf '\r\n'
+  } >"$hdrfile"
+fi
+
+body=""
+if [ -n "${CURL_SHIM_RESPONSE:-}" ] && [ -r "$CURL_SHIM_RESPONSE" ]; then
+  body=$(cat "$CURL_SHIM_RESPONSE")
+fi
+[ -n "$outfile" ] && printf '%s' "$body" >"$outfile"
+[ "$writefmt" -eq 1 ] && printf '%s' "$http"
+exit 0

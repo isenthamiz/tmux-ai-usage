@@ -1,10 +1,14 @@
 #!/usr/bin/env bats
 # wait_for conditions are single-quoted on purpose: they are evaluated when polled.
 # Each @test runs in its own subshell, so per-test exports are meant to be local.
-# shellcheck disable=SC2016,SC2030,SC2031
+# shellcheck disable=SC2016,SC2030,SC2031,SC2123
 load test_helper
 
-setup() { setup_env; setup_codex primary-secondary; }
+setup() {
+  setup_env
+  setup_codex primary-secondary
+  unset CURL_SHIM_EXIT CURL_SHIM_HTTP CURL_SHIM_RETRY_AFTER
+}
 
 NOW=1795074751
 
@@ -86,7 +90,70 @@ NOW=1795074751
 @test "a failed fetch keeps the last good windows and is not retried for a refresh interval" {
   seed_snapshot primary-only $((NOW - 120))
   export CURL_SHIM_EXIT=22
+  unset CURL_SHIM_HTTP
   AI_USAGE_NOW=$NOW run render codex
   wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
   [ "$(jq -c '{status, ok_at, retry_at, labels: [.windows[].label]}' "$CACHE/codex.json")" = "{\"status\":\"error\",\"ok_at\":$((NOW - 120)),\"retry_at\":$((NOW + 60)),\"labels\":[\"wk\"]}" ]
+}
+
+@test "missing Codex sign-in is signed_out" {
+  seed_snapshot primary-only $((NOW - 120))
+  rm -f "$CODEX_HOME/auth.json"
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq -r .status "$CACHE/codex.json")" = "signed_out" ]'
+  [ "$(jq -c '{status, labels: [.windows[].label]}' "$CACHE/codex.json")" = "{\"status\":\"signed_out\",\"labels\":[\"wk\"]}" ]
+}
+
+@test "HTTP 401 from wham/usage is signed_out" {
+  seed_snapshot primary-only $((NOW - 120))
+  unset CURL_SHIM_EXIT
+  export CURL_SHIM_HTTP=401
+  export CURL_SHIM_RESPONSE=/dev/null
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq -r .status "$CACHE/codex.json")" = "signed_out" ]'
+}
+
+@test "429 honours Retry-After in retry_at" {
+  seed_snapshot primary-only $((NOW - 120))
+  unset CURL_SHIM_EXIT
+  export CURL_SHIM_HTTP=429
+  export CURL_SHIM_RETRY_AFTER=120
+  export CURL_SHIM_RESPONSE=/dev/null
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq -r .retry_at "$CACHE/codex.json")" = "$((NOW + 120))" ]'
+}
+
+@test "a second consecutive error doubles the back-off" {
+  seed_snapshot primary-only $((NOW - 120))
+  export CURL_SHIM_EXIT=22
+  unset CURL_SHIM_HTTP
+  AI_USAGE_NOW=$NOW run refresh codex
+  [ "$(jq .retry_at "$CACHE/codex.json")" = "$((NOW + 60))" ]
+  patch_snapshot --argjson fa "$NOW" --argjson ra $((NOW + 60)) \
+    '.status = "error" | .fetched_at = $fa | .retry_at = $ra'
+  unset CURL_SHIM_EXIT
+  export CURL_SHIM_HTTP=500
+  export CURL_SHIM_RESPONSE=/dev/null
+  AI_USAGE_NOW=$((NOW + 60)) run refresh codex
+  [ "$(jq .retry_at "$CACHE/codex.json")" = "$((NOW + 180))" ]
+}
+
+@test "no refresh runs before retry_at" {
+  seed_snapshot primary-only $((NOW - 120))
+  export CURL_SHIM_EXIT=22
+  AI_USAGE_NOW=$NOW run render codex
+  wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
+  unset CURL_SHIM_EXIT CURL_SHIM_HTTP
+  export CURL_SHIM_RESPONSE="$FIXTURES/codex/primary-only.json"
+  AI_USAGE_NOW=$((NOW + 30)) run render codex
+  sleep 0.5
+  [ "$(curl_calls)" = 1 ]
+}
+
+@test "missing curl produces missing_dep" {
+  seed_snapshot primary-only $((NOW - 120))
+  export AI_USAGE_TEST_NO_CURL=1
+  AI_USAGE_NOW=$NOW run refresh codex
+  unset AI_USAGE_TEST_NO_CURL
+  [ "$(jq -r .status "$CACHE/codex.json")" = "missing_dep" ]
 }
