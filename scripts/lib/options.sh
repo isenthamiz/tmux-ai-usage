@@ -1,7 +1,7 @@
 # shellcheck shell=bash disable=SC2034  # sets globals read by the scripts that source it
 # Plugin options, read with a single `tmux show-options -g` call per run.
 # Sets COLOR_OK, COLOR_WARN, COLOR_CRIT, COLOR_TEXT, COLOR_DIM, WARN_AT, CRIT_AT,
-# BAR_WIDTH, BAR_FILLED, BAR_EMPTY, REFRESH_INTERVAL and CODEX_LABEL.
+# BAR_WIDTH, BAR_FILLED, BAR_EMPTY, REFRESH_INTERVAL, STALE_AFTER and CODEX_LABEL.
 
 load_options() {
   local line name value thm_green="" thm_yellow="" thm_red="" thm_text="" thm_dim=""
@@ -30,5 +30,6 @@ load_options() {
   BAR_FILLED="▰"
   BAR_EMPTY="▱"
   REFRESH_INTERVAL=60
+  STALE_AFTER=900
   CODEX_LABEL="cx"
 }
