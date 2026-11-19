@@ -1,0 +1,7 @@
+#!/bin/bash
+# Test double for curl. Consumes stdin (curl --config -), records one line per call
+# in $CURL_SHIM_LOG, waits $CURL_SHIM_DELAY seconds, then prints $CURL_SHIM_RESPONSE.
+cat >/dev/null
+echo "call" >> "${CURL_SHIM_LOG:?}"
+sleep "${CURL_SHIM_DELAY:-0}"
+cat "${CURL_SHIM_RESPONSE:?}"

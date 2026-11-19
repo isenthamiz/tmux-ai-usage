@@ -1,0 +1,10 @@
+#!/bin/bash
+# Test double for tmux. `show-options -g` prints $TMUX_SHIM_OPTIONS (a file in
+# real `tmux show-options -g` format); every call is appended to $TMUX_SHIM_LOG.
+[ -n "$TMUX_SHIM_LOG" ] && echo "$*" >> "$TMUX_SHIM_LOG"
+case "$1" in
+  show-options|show)
+    [ -n "$TMUX_SHIM_OPTIONS" ] && [ -f "$TMUX_SHIM_OPTIONS" ] && cat "$TMUX_SHIM_OPTIONS"
+    ;;
+esac
+exit 0
