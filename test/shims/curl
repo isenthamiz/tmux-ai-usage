@@ -29,25 +29,9 @@ if [ -n "$hdrfile" ]; then
   } >"$hdrfile"
 fi
 
-url=""
-i=0
-while [ $i -lt ${#args[@]} ]; do
-  case "${args[$i]}" in
-    http*) url="${args[$i]}" ;;
-  esac
-  i=$((i + 1))
-done
-
-resp="${CURL_SHIM_RESPONSE:-}"
-if [[ "$url" == *get-sand-usage-status* ]]; then
-  resp="${CURL_SHIM_SAND_RESPONSE:-$resp}"
-elif [[ "$url" == *usage-summary* ]]; then
-  resp="${CURL_SHIM_SUMMARY_RESPONSE:-$resp}"
-fi
-
 body=""
-if [ -n "$resp" ] && [ -r "$resp" ]; then
-  body=$(cat "$resp")
+if [ -n "${CURL_SHIM_RESPONSE:-}" ] && [ -r "$CURL_SHIM_RESPONSE" ]; then
+  body=$(cat "$CURL_SHIM_RESPONSE")
 fi
 [ -n "$outfile" ] && printf '%s' "$body" >"$outfile"
 [ "$writefmt" -eq 1 ] && printf '%s' "$http"

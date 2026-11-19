@@ -1,0 +1,11 @@
+{
+  "subscription_type": "max",
+  "rate_limits_available": true,
+  "rate_limits": {
+    "five_hour": { "utilization": 12, "resets_at": "2026-11-19T14:30:00Z" },
+    "seven_day": { "utilization": 41, "resets_at": "2026-11-26T12:00:00Z" },
+    "seven_day_opus": { "utilization": 55, "resets_at": "2026-11-26T12:00:00Z" },
+    "seven_day_sonnet": null,
+    "model_scoped": []
+  }
+}

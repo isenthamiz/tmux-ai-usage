@@ -34,21 +34,6 @@ setup_claude() { # get_usage-body-fixture
 
 claude_calls() { [ -f "$CLAUDE_SHIM_LOG" ] && wc -l < "$CLAUDE_SHIM_LOG" | tr -d ' ' || echo 0; }
 
-seed_snapshot_cursor() { # fixture fetched_at
-  jq --argjson now "$2" -L "$ROOT/scripts/lib" -f "$ROOT/scripts/providers/cursor/normalize.jq" \
-    "$FIXTURES/cursor/$1.json" > "$CACHE/cursor.json"
-}
-
-setup_cursor() { # unified|legacy
-  export CURSOR_STATE_DB="$BATS_TEST_TMPDIR/cursor-state.vscdb"
-  touch "$CURSOR_STATE_DB"
-  export CURSOR_SHIM_TOKEN="${CURSOR_TEST_JWT:-eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhdXRoMHx0ZXN0dXNlciIsImV4cCI6MTg5MzQ1NjAwMH0.sig}"
-  export CURL_SHIM_LOG="$BATS_TEST_TMPDIR/curl.log"
-  : >"$CURL_SHIM_LOG"
-  export CURL_SHIM_SAND_RESPONSE="$FIXTURES/cursor/sand-unified.json"
-  unset CURL_SHIM_SUMMARY_RESPONSE
-}
-
 render() { "$ROOT/scripts/render.sh" "$@"; }
 refresh() { "$ROOT/scripts/refresh.sh" "$@"; }
 
