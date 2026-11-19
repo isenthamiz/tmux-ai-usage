@@ -13,3 +13,5 @@
 **Usage bar**: The status-line rendering of one quota window's usage, together with time until reset.
 
 **Usage snapshot**: One provider's usage across all its quota windows as read at a single moment, together with when it was read and whether the reading succeeded. Usage bars are always drawn from a usage snapshot, never from a provider directly.
+
+**Window label**: The short name of a quota window, derived from its length and, for model-scoped windows, the model (e.g. `5h`, `wk`, `mo`, `wk-opus`), so the same window kind has the same name across providers. Used both on the usage bar and when choosing which window a usage bar shows.
