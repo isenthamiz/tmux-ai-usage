@@ -71,8 +71,8 @@ at() { AI_USAGE_NOW=$1 AI_USAGE_NO_REFRESH=1 render all; }
 @test "a per-provider token ignores rotation" {
   opt @ai_usage_rotate on
   opt @ai_usage_step 4
-  [ "$(AI_USAGE_NOW=$((NOW + 10)) render claude)" = "$CL" ]
-  [ "$(AI_USAGE_NOW=$((NOW + 20)) render claude)" = "$CL" ]
+  [ "$(AI_USAGE_NOW=$((NOW + 10)) AI_USAGE_NO_REFRESH=1 render claude)" = "$CL" ]
+  [ "$(AI_USAGE_NOW=$((NOW + 20)) AI_USAGE_NO_REFRESH=1 render claude)" = "$CL" ]
 }
 
 @test "with rotation off #{ai_usage} shows every provider" {
@@ -95,4 +95,25 @@ at() { AI_USAGE_NOW=$1 AI_USAGE_NO_REFRESH=1 render all; }
   opt @ai_usage_rotate_interval 0
   opt @ai_usage_step 4
   [ "$(at $NOW)" = '#[fg=#f9e2af]cl #[fg=#f9e2af]cx #[fg=#a6e3a1]cu#[fg=default]' ]
+}
+
+@test "a provider waiting for its turn is still refreshed when due" {
+  setup_codex primary-secondary
+  seed_snapshot primary-only $((NOW - 120))
+  opt @ai_usage_rotate on
+  opt @ai_usage_step 4
+  [ "$(AI_USAGE_NOW=$NOW render all)" = "$CL" ]
+  wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
+  wait_for refresh_idle
+  [ "$(curl_calls)" = 1 ]
+}
+
+@test "a provider named twice in @ai_usage_providers gets one turn" {
+  opt @ai_usage_providers '"claude claude codex"'
+  opt @ai_usage_rotate on
+  opt @ai_usage_step 4
+  # Two distinct providers; floor(NOW / 10) is odd, so slot 1 comes first.
+  [ "$(at $NOW)" = "$CX" ]
+  [ "$(at $((NOW + 10)))" = "$CL" ]
+  [ "$(at $((NOW + 20)))" = "$CX" ]
 }

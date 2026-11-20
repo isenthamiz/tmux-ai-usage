@@ -4,6 +4,7 @@
 _valid_providers() {
   local want=$1 have="" p
   for p in $want; do
+    case " $have " in *" $p "*) continue ;; esac  # each provider once
     case $p in
       claude|codex|cursor) have="$have $p" ;;
     esac
