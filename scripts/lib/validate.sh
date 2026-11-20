@@ -123,6 +123,16 @@ validate_ai_usage_options() {
     _option_report_invalid '@ai_usage_step' "$value" 'auto'
   fi
 
+  value=$(tmux show-options -gqv @ai_usage_rotate 2>/dev/null) || value=""
+  if [ -n "$value" ] && ! valid_on_off "$value"; then
+    _option_report_invalid '@ai_usage_rotate' "$value" 'off'
+  fi
+
+  value=$(tmux show-options -gqv @ai_usage_rotate_interval 2>/dev/null) || value=""
+  if [ -n "$value" ] && ! valid_rotate_interval "$value"; then
+    _option_report_invalid '@ai_usage_rotate_interval' "$value" '10'
+  fi
+
   # The renderer reads this instead of running tmux -V on every redraw.
   value=$(tmux -V 2>/dev/null) || value=""
   tmux set-option -gq @ai_usage_tmux_version "${value#tmux }"

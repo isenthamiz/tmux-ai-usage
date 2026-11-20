@@ -206,9 +206,25 @@ _print_steps() {
 
 load_all_render_rows
 
+# The provider #{ai_usage} shows while rotating: slot floor(now / interval)
+# mod n, so every client agrees and nothing is stored. The interval is
+# rounded up to whole status-interval ticks.
+rotation_pick() { # provider...
+  local interval=$ROTATE_INTERVAL tick=$STATUS_INTERVAL
+  if [ "$tick" -gt 0 ]; then
+    interval=$(( (interval + tick - 1) / tick * tick ))
+  fi
+  shift $(( now / interval % $# ))
+  printf '%s' "$1"
+}
+
 if [ "$target" = all ]; then
   # shellcheck disable=SC2086  # PROVIDERS is a space-separated list
-  _build_steps $PROVIDERS
+  if [ "$ROTATE" = on ]; then
+    _build_steps "$(rotation_pick $PROVIDERS)"
+  else
+    _build_steps $PROVIDERS
+  fi
 else
   _build_steps "$target"
 fi

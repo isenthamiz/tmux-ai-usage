@@ -88,3 +88,23 @@ OPTS
   TMUX_SHIM_VERSION=3.1c load_plugin
   grep -q 'set-option -gq @ai_usage_tmux_version 3.1c' "$TMUX_SHIM_SET_LOG"
 }
+
+@test "an unknown rotate value is reset to off at load" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_rotate yes
+OPTS
+  load_plugin
+  grep -q '@ai_usage_rotate invalid' "$TMUX_SHIM_MSG_LOG"
+  grep -q 'set-option -gq @ai_usage_rotate off' "$TMUX_SHIM_SET_LOG"
+}
+
+@test "a rotate interval that is not a positive integer is reset to 10 at load" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_rotate_interval 0
+OPTS
+  load_plugin
+  grep -q '@ai_usage_rotate_interval invalid' "$TMUX_SHIM_MSG_LOG"
+  grep -q 'set-option -gq @ai_usage_rotate_interval 10' "$TMUX_SHIM_SET_LOG"
+}

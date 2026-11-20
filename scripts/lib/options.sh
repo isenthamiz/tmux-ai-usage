@@ -23,6 +23,16 @@ valid_step_widths() { # value
   [ "$n" -eq 4 ]
 }
 
+valid_on_off() { # value
+  case $1 in on|off) return 0 ;; esac
+  return 1
+}
+
+valid_rotate_interval() { # value: whole seconds, at least 1
+  case $1 in ''|*[!0-9]*) return 1 ;; esac
+  [ "$1" -ge 1 ]
+}
+
 valid_step() { # value
   case $1 in auto|full|1|2|3|4) return 0 ;; esac
   return 1
@@ -62,6 +72,9 @@ load_options() {
   CURSOR_WINDOW=auto
   STEP_WIDTHS='180 140 110 80'
   STEP=auto
+  ROTATE=off
+  ROTATE_INTERVAL=10
+  STATUS_INTERVAL=15
   TMUX_HAS_EXPR=1
 
   while IFS= read -r line; do
@@ -112,6 +125,12 @@ load_options() {
         esac ;;
       @ai_usage_step_widths)
         valid_step_widths "$value" && STEP_WIDTHS=$value ;;
+      status-interval)
+        case $value in ''|*[!0-9]*) ;; *) STATUS_INTERVAL=$value ;; esac ;;
+      @ai_usage_rotate)
+        valid_on_off "$value" && ROTATE=$value ;;
+      @ai_usage_rotate_interval)
+        valid_rotate_interval "$value" && ROTATE_INTERVAL=$value ;;
       @ai_usage_step)
         valid_step "$value" && STEP=$value ;;
       @ai_usage_tmux_version)
