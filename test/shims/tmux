@@ -8,6 +8,9 @@ _show_opts_file() {
 }
 
 case "$1" in
+  -V)
+    echo "tmux ${TMUX_SHIM_VERSION:-3.5a}"
+    ;;
   show-options|show)
     shift || true
     if [ "${1:-}" = -gqv ] && [ -n "${2:-}" ]; then

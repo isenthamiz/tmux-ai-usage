@@ -96,3 +96,6 @@ seed_status() { # status [ok_at]
       windows:(if $oat == null then [] else [{label:"wk",used_pct:66,resets_at:($now+7200),window_seconds:604800}] end)}' \
     > "$CACHE/codex.json"
 }
+
+# Pin render.sh to one step instead of the client_width conditional.
+force_step() { echo "@ai_usage_step $1" >> "$TMUX_SHIM_OPTIONS"; }

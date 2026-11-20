@@ -84,7 +84,7 @@ Always show Claude's weekly window instead of the most-used one:
 set -g @ai_usage_claude_window 'wk'
 ```
 
-Percentage only, no bar:
+Percentage instead of the bar:
 
 ```tmux
 set -g @ai_usage_bar_width '0'
@@ -98,6 +98,12 @@ set -g @ai_usage_warn_color '#f1fa8c'
 set -g @ai_usage_crit_color '#ff5555'
 set -g @ai_usage_text_color '#f8f8f2'
 set -g @ai_usage_dim_color '#6272a4'
+```
+
+Always the compact step, whatever the width:
+
+```tmux
+set -g @ai_usage_step '2'
 ```
 
 Each provider in its own place:
@@ -128,13 +134,32 @@ A label the provider does not currently report falls back to `auto`.
 | `@ai_usage_providers` | Space-separated subset of `claude codex cursor`; also the order in `#{ai_usage}` | `claude codex cursor` |
 | `@ai_usage_claude_window` / `@ai_usage_codex_window` / `@ai_usage_cursor_window` | `auto` or a window label (see above) | `auto` |
 | `@ai_usage_claude_label` / `@ai_usage_codex_label` / `@ai_usage_cursor_label` | String | `cl` / `cx` / `cu` |
-| `@ai_usage_separator` | String between providers in `#{ai_usage}` | ` │ ` |
+| `@ai_usage_separator` | String between providers in `#{ai_usage}` at full and step 1 (steps 2–4 use one space) | ` │ ` |
+
+**Steps**
+
+Each usage bar shrinks with the terminal width, per tmux client. Every shown provider is drawn at the same step:
+
+| Step | Client width (default) | Looks like |
+|---|---|---|
+| full | ≥ 180 | `cl 5h ▰▱▱▱▱ 3h58m │ cx wk ▰▰▰▱▱ 1d14h` |
+| 1 | ≥ 140 | `cl ▰▱▱▱▱ 3h58m │ cx ▰▰▰▱▱ 1d14h` |
+| 2 | ≥ 110 | `cl ▰▱▱▱▱ cx ▰▰▰▱▱` (countdown only when crit) |
+| 3 | ≥ 80 | `cl 16% cx 66%` (countdown only when crit) |
+| 4 | < 80 | `cl cx`, each label in its usage colour |
+
+Width-aware steps need tmux ≥ 3.2; older tmux shows the full step unless `@ai_usage_step` forces one.
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_step_widths` | Four descending integers: minimum client width for full, step 1, step 2, step 3 | `180 140 110 80` |
+| `@ai_usage_step` | `auto`, `full`, `1`, `2`, `3`, `4` | `auto` |
 
 **Bar**
 
 | Option | Value | Default |
 |---|---|---|
-| `@ai_usage_bar_width` | Integer ≥ 0; `0` shows the percentage only | `5` |
+| `@ai_usage_bar_width` | Integer ≥ 0; `0` puts the percentage where the bar would be, at every step | `5` |
 | `@ai_usage_bar_filled` / `@ai_usage_bar_empty` | String | `▰` / `▱` |
 
 **Colours and thresholds**

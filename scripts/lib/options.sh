@@ -12,6 +12,33 @@ _valid_providers() {
   if [ -n "$have" ]; then echo "$have"; else echo "claude codex cursor"; fi
 }
 
+# Four descending integers: minimum client width for full, step 1, 2 and 3.
+valid_step_widths() { # value
+  local n=0 prev="" w
+  for w in $1; do
+    case $w in ''|*[!0-9]*) return 1 ;; esac
+    [ -n "$prev" ] && [ "$w" -ge "$prev" ] && return 1
+    prev=$w; n=$((n + 1))
+  done
+  [ "$n" -eq 4 ]
+}
+
+valid_step() { # value
+  case $1 in auto|full|1|2|3|4) return 0 ;; esac
+  return 1
+}
+
+# tmux gained the e|>=: comparison the step conditional needs in 3.2.
+version_has_expr() { # tmux version, e.g. 3.5a, 3.1c, next-3.6
+  local v=${1#next-} major minor
+  v=${v%%[!0-9.]*}
+  major=${v%%.*}
+  minor=${v#*.}; minor=${minor%%.*}
+  case $major in ''|*[!0-9]*) return 0 ;; esac
+  case $minor in ''|*[!0-9]*) minor=0 ;; esac
+  [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 2 ]; }
+}
+
 _finalize_loaded_options() {
   local def_cache="${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage"
 
@@ -33,6 +60,9 @@ load_options() {
   CLAUDE_WINDOW=auto
   CODEX_WINDOW=auto
   CURSOR_WINDOW=auto
+  STEP_WIDTHS='180 140 110 80'
+  STEP=auto
+  TMUX_HAS_EXPR=1
 
   while IFS= read -r line; do
     name=${line%% *}
@@ -80,6 +110,12 @@ load_options() {
         case $value in ''|*[!0-9]*) ;;
         *) STALE_AFTER=$value ;;
         esac ;;
+      @ai_usage_step_widths)
+        valid_step_widths "$value" && STEP_WIDTHS=$value ;;
+      @ai_usage_step)
+        valid_step "$value" && STEP=$value ;;
+      @ai_usage_tmux_version)
+        version_has_expr "$value" || TMUX_HAS_EXPR=0 ;;
       @ai_usage_cache_dir)
         [ -n "$value" ] && CACHE_DIR=$value ;;
     esac

@@ -5,7 +5,7 @@
 load test_helper
 
 setup() {
-  setup_env
+  setup_env; force_step full
   setup_codex primary-secondary
   unset CURL_SHIM_EXIT CURL_SHIM_HTTP CURL_SHIM_RETRY_AFTER
 }
@@ -15,7 +15,7 @@ NOW=1795074751
 @test "a stale snapshot is served at once and refreshed exactly once" {
   seed_snapshot primary-only $((NOW - 120))
   AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ 66% #[fg=#6c7086]2d1h#[fg=default]' ]
+  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
   wait_for '[ "$(jq .fetched_at "$CACHE/codex.json")" = "$NOW" ]'
   wait_for refresh_idle
   [ "$(curl_calls)" = 1 ]

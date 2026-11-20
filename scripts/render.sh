@@ -63,6 +63,12 @@ maybe_start_refresh() {
   fi
 }
 
+# Sets PIECE[0..4]: one provider's usage bar at full, step 1, step 2, step 3
+# and step 4.
+_set_piece_all() { # text: the same piece at every step
+  PIECE=("$1" "$1" "$1" "$1" "$1")
+}
+
 _format_piece() {
   local provider=$1
   local status fetched_at ok_at retry_at window_label used_pct resets_at has_windows
@@ -79,37 +85,36 @@ _format_piece() {
   resets_at=$(_get_row_field "$provider" RESETS_AT)
   has_windows=$(_get_row_field "$provider" HAS_WINDOWS)
 
+  local pending="#[fg=$COLOR_DIM]$provider_label …"
+  local pending4="#[fg=$COLOR_DIM]$provider_label"
+
   if [ "$status" = pending ] || [ ! -f "$snapshot" ]; then
     maybe_start_refresh "$provider" 0 0
-    printf '#[fg=%s]%s …' "$COLOR_DIM" "$provider_label"
+    _set_piece_all "$pending"; PIECE[4]=$pending4
     return 0
   fi
 
   maybe_start_refresh "$provider" "${fetched_at:-0}" "${retry_at:-0}"
 
+  local marker=""
   case $status in
-    signed_out)
-      printf '#[fg=%s]%s !login' "$COLOR_CRIT" "$provider_label"
-      return 0 ;;
-    missing_dep)
-      printf '#[fg=%s]%s !deps' "$COLOR_CRIT" "$provider_label"
-      return 0 ;;
-    bad_shape)
-      printf '#[fg=%s]%s !format' "$COLOR_CRIT" "$provider_label"
-      return 0 ;;
+    signed_out) marker='!login' ;;
+    missing_dep) marker='!deps' ;;
+    bad_shape) marker='!format' ;;
+    error)
+      if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ]; then
+        marker='!error'
+      fi ;;
   esac
-
-  if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ]; then
-    if [ "$status" = error ]; then
-      printf '#[fg=%s]%s !error' "$COLOR_CRIT" "$provider_label"
-    else
-      printf '#[fg=%s]%s …' "$COLOR_DIM" "$provider_label"
-    fi
+  if [ -n "$marker" ]; then
+    _set_piece_all "#[fg=$COLOR_CRIT]$provider_label $marker"
+    PIECE[4]="#[fg=$COLOR_CRIT]$provider_label!"
     return 0
   fi
 
-  if [ -z "${ok_at:-}" ] || [ "$ok_at" = 0 ]; then
-    printf '#[fg=%s]%s …' "$COLOR_DIM" "$provider_label"
+  if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ] ||
+     [ -z "${ok_at:-}" ] || [ "$ok_at" = 0 ]; then
+    _set_piece_all "$pending"; PIECE[4]=$pending4
     return 0
   fi
 
@@ -120,73 +125,90 @@ _format_piece() {
     countdown_str=$(countdown $((resets_at - now)))
   fi
 
-  local stale=0 label_color dim_color bar_color tilde pct bar
-  if [ $((now - ok_at)) -gt "$STALE_AFTER" ]; then
-    stale=1
-  fi
-
-  label_color=$COLOR_TEXT
-  dim_color=$COLOR_DIM
+  local label_color=$COLOR_TEXT dim=$COLOR_DIM bar_color tilde=""
   bar_color=$(usage_color "$used_pct")
-  tilde=""
-  if [ "$stale" -eq 1 ]; then
+  if [ $((now - ok_at)) -gt "$STALE_AFTER" ]; then
     label_color=$COLOR_DIM
     bar_color=$COLOR_DIM
     tilde='~'
   fi
 
-  pct="${tilde}${used_pct}%"
-  bar=""
+  # What shows usage: the progress bar, or the percentage in its place.
+  local pct="${tilde}${used_pct}%" usage
   if [ "$BAR_WIDTH" -gt 0 ]; then
-    bar=$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")
-  fi
-
-  if [ -n "$countdown_str" ]; then
-    if [ -n "$bar" ]; then
-      printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s #[fg=%s]%s' \
-        "$label_color" "$provider_label" "$dim_color" "$window_label" \
-        "$bar_color" "$bar" "$pct" "$dim_color" "$countdown_str"
-    else
-      printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s #[fg=%s]%s' \
-        "$label_color" "$provider_label" "$dim_color" "$window_label" \
-        "$bar_color" "$pct" "$dim_color" "$countdown_str"
-    fi
+    usage="${tilde}$(bar "$used_pct" "$BAR_WIDTH" "$BAR_FILLED" "$BAR_EMPTY")"
   else
-    if [ -n "$bar" ]; then
-      printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s %s' \
-        "$label_color" "$provider_label" "$dim_color" "$window_label" \
-        "$bar_color" "$bar" "$pct"
-    else
-      printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s' \
-        "$label_color" "$provider_label" "$dim_color" "$window_label" \
-        "$bar_color" "$pct"
-    fi
+    usage=$pct
   fi
+
+  local cdn="" cd_crit=""
+  [ -n "$countdown_str" ] && cdn=" #[fg=$dim]$countdown_str"
+  [ "$used_pct" -ge "$CRIT_AT" ] && cd_crit=$cdn
+
+  local head="#[fg=$label_color]$provider_label "
+  PIECE[0]="$head#[fg=$dim]$window_label #[fg=$bar_color]$usage$cdn"
+  PIECE[1]="$head#[fg=$bar_color]$usage$cdn"
+  PIECE[2]="$head#[fg=$bar_color]$usage$cd_crit"
+  PIECE[3]="$head#[fg=$bar_color]$pct$cd_crit"
+  PIECE[4]="#[fg=$bar_color]$provider_label"
 }
 
-render_piece() {
-  _format_piece "$1"
+# Pieces for the providers in $@, joined per step into STEP_TEXT[0..4].
+_build_steps() {
+  local provider i
+  STEP_TEXT=("" "" "" "" "")
+  for provider in "$@"; do
+    _format_piece "$provider"
+    for i in 0 1 2 3 4; do
+      if [ -n "${STEP_TEXT[$i]}" ]; then
+        if [ "$i" -le 1 ]; then
+          STEP_TEXT[i]="${STEP_TEXT[$i]}#[fg=${COLOR_DIM}]${SEPARATOR}"
+        else
+          STEP_TEXT[i]="${STEP_TEXT[$i]} "
+        fi
+      fi
+      STEP_TEXT[i]="${STEP_TEXT[$i]}${PIECE[$i]}"
+    done
+  done
 }
 
-render_provider() {
-  local provider=$1
-  render_piece "$provider"
-  printf '#[fg=default]\n'
+# Literal commas and closing braces would end a conditional branch early.
+# Sets BRANCH (no subshell: render.sh runs on every redraw).
+_escape_branch() {
+  BRANCH=${1//,/#,}
+  BRANCH=${BRANCH//\}/#\}}
+}
+
+# One step's text, or (auto on tmux >= 3.2) every step in a client_width
+# conditional that tmux expands per client on each redraw.
+_print_steps() {
+  local i out widths
+  case $STEP in
+    full) out=${STEP_TEXT[0]} ;;
+    1|2|3|4) out=${STEP_TEXT[$STEP]} ;;
+    *)
+      if [ "$TMUX_HAS_EXPR" != 1 ]; then
+        out=${STEP_TEXT[0]}
+      else
+        # shellcheck disable=SC2206  # four integers, validated in load_options
+        widths=($STEP_WIDTHS)
+        _escape_branch "${STEP_TEXT[4]}"
+        out=$BRANCH
+        for i in 3 2 1 0; do
+          _escape_branch "${STEP_TEXT[$i]}"
+          out="#{?#{e|>=:#{client_width},${widths[$i]}},$BRANCH,$out}"
+        done
+      fi ;;
+  esac
+  printf '%s#[fg=default]\n' "$out"
 }
 
 load_all_render_rows
 
 if [ "$target" = all ]; then
-  combined=""
-  for provider in $PROVIDERS; do
-    if [ -n "$combined" ]; then
-      combined="${combined}#[fg=${COLOR_DIM}]${SEPARATOR}"
-    fi
-    piece=$(_format_piece "$provider")
-    combined="${combined}${piece}"
-  done
-  printf '%s#[fg=default]\n' "$combined"
-  exit 0
+  # shellcheck disable=SC2086  # PROVIDERS is a space-separated list
+  _build_steps $PROVIDERS
+else
+  _build_steps "$target"
 fi
-
-render_provider "$target"
+_print_steps
