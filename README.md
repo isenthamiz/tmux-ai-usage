@@ -100,6 +100,13 @@ set -g @ai_usage_text_color '#f8f8f2'
 set -g @ai_usage_dim_color '#6272a4'
 ```
 
+One provider at a time, 20 s each:
+
+```tmux
+set -g @ai_usage_rotate 'on'
+set -g @ai_usage_rotate_interval '20'
+```
+
 Always the compact step, whatever the width:
 
 ```tmux
@@ -154,6 +161,15 @@ Width-aware steps need tmux ≥ 3.2; older tmux shows the full step unless `@ai_
 |---|---|---|
 | `@ai_usage_step_widths` | Four descending integers: minimum client width for full, step 1, step 2, step 3 | `180 140 110 80` |
 | `@ai_usage_step` | `auto`, `full`, `1`, `2`, `3`, `4` | `auto` |
+
+**Rotation**
+
+With `@ai_usage_rotate on`, `#{ai_usage}` shows one provider at a time, cycling through `@ai_usage_providers` in order. Every provider gets an equal turn, whatever its usage or state, and every client shows the same one. With one enabled provider nothing rotates. Per-provider tokens never rotate.
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_rotate` | `off`, `on` | `off` |
+| `@ai_usage_rotate_interval` | Seconds per provider; rounded up to whole `status-interval` ticks | `10` |
 
 **Bar**
 

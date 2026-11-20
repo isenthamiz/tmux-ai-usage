@@ -52,10 +52,14 @@ _get_row_field() {
   eval "printf '%s' \"\${$(_row_var "$1" "$2")}\""
 }
 
-maybe_start_refresh() {
+# Starts a detached refresh when the provider's snapshot is missing, or its
+# TTL and retry_at have both passed.
+maybe_start_refresh() { # provider
   [ -n "${AI_USAGE_NO_REFRESH:-}" ] && return 0
-  local provider=$1 fetched=${2:-0} retry=${3:-0}
-  local snapshot
+  local provider=$1 fetched retry snapshot
+  fetched=$(_get_row_field "$provider" FETCHED_AT)
+  retry=$(_get_row_field "$provider" RETRY_AT)
+  fetched=${fetched:-0}
   snapshot=$(snapshot_path "$provider")
   if [ ! -f "$snapshot" ] || { [ "$now" -ge "${retry:-0}" ] &&
       [ $((now - fetched)) -ge "$REFRESH_INTERVAL" ]; }; then
@@ -71,15 +75,13 @@ _set_piece_all() { # text: the same piece at every step
 
 _format_piece() {
   local provider=$1
-  local status fetched_at ok_at retry_at window_label used_pct resets_at has_windows
+  local status ok_at window_label used_pct resets_at has_windows
   local provider_label snapshot
   provider_label=$(provider_label_for "$provider")
   snapshot=$(snapshot_path "$provider")
 
   status=$(_get_row_field "$provider" STATUS)
-  fetched_at=$(_get_row_field "$provider" FETCHED_AT)
   ok_at=$(_get_row_field "$provider" OK_AT)
-  retry_at=$(_get_row_field "$provider" RETRY_AT)
   window_label=$(_get_row_field "$provider" WINDOW_LABEL)
   used_pct=$(_get_row_field "$provider" USED_PCT)
   resets_at=$(_get_row_field "$provider" RESETS_AT)
@@ -89,12 +91,9 @@ _format_piece() {
   local pending4="#[fg=$COLOR_DIM]$provider_label"
 
   if [ "$status" = pending ] || [ ! -f "$snapshot" ]; then
-    maybe_start_refresh "$provider" 0 0
     _set_piece_all "$pending"; PIECE[4]=$pending4
     return 0
   fi
-
-  maybe_start_refresh "$provider" "${fetched_at:-0}" "${retry_at:-0}"
 
   local marker=""
   case $status in
@@ -204,12 +203,32 @@ _print_steps() {
   printf '%s#[fg=default]\n' "$out"
 }
 
+# The provider #{ai_usage} shows while rotating: index floor(now / interval)
+# mod n, so every client agrees and nothing is stored. The interval is
+# rounded up to whole status-interval ticks.
+rotation_pick() { # provider...
+  local interval=$ROTATE_INTERVAL tick=$STATUS_INTERVAL
+  if [ "$tick" -gt 0 ]; then
+    interval=$(( (interval + tick - 1) / tick * tick ))
+  fi
+  shift $(( now / interval % $# ))
+  printf '%s' "$1"
+}
+
 load_all_render_rows
 
 if [ "$target" = all ]; then
   # shellcheck disable=SC2086  # PROVIDERS is a space-separated list
-  _build_steps $PROVIDERS
+  set -- $PROVIDERS
+  # Every enabled provider stays fresh, including those waiting for a turn.
+  for provider in "$@"; do maybe_start_refresh "$provider"; done
+  if [ "$ROTATE" = on ]; then
+    _build_steps "$(rotation_pick "$@")"
+  else
+    _build_steps "$@"
+  fi
 else
+  maybe_start_refresh "$target"
   _build_steps "$target"
 fi
 _print_steps
