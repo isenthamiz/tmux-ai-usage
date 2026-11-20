@@ -18,7 +18,7 @@ RESET=$'\033[0m'
 
 # A tmux colour as a terminal escape: #rrggbb, colourN, or a basic name.
 ansi() { # tmux-colour
-  local c=$1 n
+  local c=$1 n name
   case $c in
     '#'[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
       printf '\033[38;2;%d;%d;%dm' "0x${c:1:2}" "0x${c:3:2}" "0x${c:5:2}" ;;
@@ -26,8 +26,8 @@ ansi() { # tmux-colour
       printf '\033[38;5;%dm' "${c##*r}" ;;
     *)
       n=0
-      for c2 in black red green yellow blue magenta cyan white; do
-        [ "$c" = "$c2" ] && { printf '\033[%dm' $((30 + n)); return; }
+      for name in black red green yellow blue magenta cyan white; do
+        [ "$c" = "$name" ] && { printf '\033[%dm' $((30 + n)); return; }
         n=$((n + 1))
       done ;;
   esac
@@ -37,16 +37,29 @@ provider_name() {
   case $1 in claude) echo Claude ;; codex) echo Codex ;; cursor) echo Cursor ;; esac
 }
 
-# The status-line marker and its fix, in words.
-problem_text() { # provider status
+# The fix for a snapshot status, in words.
+fix_text() { # provider status
   case $1/$2 in
-    claude/signed_out) echo "!login Run \`claude\` in a terminal and log in." ;;
-    codex/signed_out) echo "!login Run \`codex login\`." ;;
-    cursor/signed_out) echo "!login Open the Cursor app and sign in." ;;
-    */missing_dep) echo "!deps Something it needs is missing. Run doctor.sh to see what." ;;
-    */bad_shape) echo "!format The provider answered in a format the plugin doesn't know. The plugin may need an update." ;;
-    */error) echo "!error Temporary error; retrying automatically." ;;
+    claude/signed_out) echo "Run \`claude\` in a terminal and log in." ;;
+    codex/signed_out) echo "Run \`codex login\`." ;;
+    cursor/signed_out) echo "Open the Cursor app and sign in." ;;
+    */missing_dep) echo "Something it needs is missing. Run doctor.sh to see what." ;;
+    */bad_shape) echo "The provider answered in a format the plugin doesn't know. The plugin may need an update." ;;
+    */error) echo "Temporary error; retrying automatically." ;;
   esac
+}
+
+# The status-line marker followed by its fix.
+problem_text() { # provider status
+  printf '%s %s' "$(status_marker "$2")" "$(fix_text "$1" "$2")"
+}
+
+# The popup's width. tput inside $() writes to a pipe and can't see the
+# terminal, so ask the tty directly.
+term_cols() {
+  local size
+  size=$(stty size 2>/dev/null </dev/tty) || size=""
+  case ${size#* } in ''|*[!0-9]*) echo 80 ;; *) echo "${size#* }" ;; esac
 }
 
 clock() { date -r "$1" '+%a %H:%M'; }
@@ -79,8 +92,8 @@ draw() {
   local text dim crit
   text=$(ansi "$COLOR_TEXT"); dim=$(ansi "$COLOR_DIM"); crit=$(ansi "$COLOR_CRIT")
 
-  local narrow=0 cols=${COLUMNS:-}
-  [ -n "$cols" ] || cols=$(tput cols 2>/dev/null || echo 80)
+  local narrow=0 cols=${ONCE_COLUMNS:-}
+  [ -n "$cols" ] || cols=$(term_cols)
   [ "$cols" -lt "$NARROW_BELOW" ] && narrow=1
 
   local name_w=8 indent='         '
@@ -91,7 +104,8 @@ draw() {
       "$(rstrip "$(printf '%-8s %-10s %-16s %-9s %s' Provider Window Usage 'Resets in' 'Resets at')")" "$RESET"
   fi
 
-  local kind p a b c cur="" status ok_at stale shows rows=() notes=() line
+  # P rows: provider status ok_at.  W rows: provider label pct resets_at.
+  local kind p f1 f2 f3 cur="" status ok_at stale draws_windows rows=() notes=() line
   flush() {
     [ -n "$cur" ] || return 0
     local name first=1 r all=("${rows[@]}" "${notes[@]}")
@@ -111,35 +125,34 @@ draw() {
     done
   }
 
-  while IFS=$'\t' read -r kind p a b c; do
+  while IFS=$'\t' read -r kind p f1 f2 f3; do
     if [ "$kind" = P ]; then
       flush
-      cur=$p status=$a ok_at=$b rows=() notes=() stale=0 shows=1
+      cur=$p status=$f1 ok_at=$f2 rows=() notes=() stale=0 draws_windows=1
       case $status in
-        pending) notes=("${dim}… no reading yet") shows=0 ;;
+        pending) notes=("${dim}… no reading yet") draws_windows=0 ;;
         signed_out|missing_dep|bad_shape)
-          notes=("$crit$(problem_text "$p" "$status")") shows=0 ;;
+          notes=("$crit$(problem_text "$p" "$status")") draws_windows=0 ;;
         error) notes=("$crit$(problem_text "$p" "$status")") ;;
       esac
-      if [ "$shows" -eq 1 ] && [ "${ok_at:-0}" != 0 ] &&
-         [ $((now - ok_at)) -gt "$STALE_AFTER" ]; then
+      if [ "$draws_windows" -eq 1 ] && [ "${ok_at:-0}" != 0 ] && is_stale "$ok_at" "$now"; then
         stale=1
         notes+=("$dim~ last good reading $(countdown $((now - ok_at))) ago; numbers may be out of date")
       fi
       continue
     fi
-    [ "$shows" -eq 1 ] || continue
-    local color left="" at=""
-    color=$(usage_color "$b")
+    [ "$draws_windows" -eq 1 ] || continue
+    local label=$f1 pct=$f2 resets_at=$f3 color left="" at=""
+    color=$(usage_color "$pct")
     [ "$stale" -eq 1 ] && color=$dim || color=$(ansi "$color")
-    if [ "$c" -gt "$now" ]; then
-      left=$(countdown $((c - now))); at=$(clock "$c")
+    if [ "$resets_at" -gt "$now" ]; then
+      left=$(countdown $((resets_at - now))); at=$(clock "$resets_at")
     fi
     if [ "$narrow" -eq 1 ]; then
-      line="$dim$a $color$b%$RESET${left:+ $dim$left}$RESET"
+      line="$dim$label $color$pct%$RESET${left:+ $dim$left}$RESET"
     else
-      line=$(printf '%s%-10s %s%s %4s%%' "$dim" "$a" "$color" \
-        "$(bar "$b" "$BAR_CELLS" "$BAR_FILLED" "$BAR_EMPTY")" "$b")
+      line=$(printf '%s%-10s %s%s %4s%%' "$dim" "$label" "$color" \
+        "$(bar "$pct" "$BAR_CELLS" "$BAR_FILLED" "$BAR_EMPTY")" "$pct")
       [ -n "$left" ] && line=$(printf '%s %s%-9s %s' "$line" "$dim" "$left" "$at")
     fi
     rows+=("$line")
@@ -150,16 +163,25 @@ draw() {
 load_options
 
 if [ "${1:-}" = --once ]; then
+  ONCE_COLUMNS=${COLUMNS:-}  # no terminal to ask when piped
   now=${AI_USAGE_NOW:-$(date +%s)}
   draw
   exit 0
 fi
 
+# Poll keys once a second: redraw when the popup is resized (bash 3.2's read
+# isn't interrupted by SIGWINCH) or every 10 s, and close on q or Esc.
+drawn_at=0 drawn_cols=""
 while :; do
   now=$(date +%s)
-  printf '\033[2J\033[H'
-  draw
-  printf '\n%sq close%s' "$(ansi "$COLOR_DIM")" "$RESET"
-  IFS= read -rsn1 -t 10 key
+  cols=$(term_cols)
+  if [ "$cols" != "$drawn_cols" ] || [ $((now - drawn_at)) -ge 10 ]; then
+    printf '\033[2J\033[H'
+    draw
+    printf '\n%sq close%s' "$(ansi "$COLOR_DIM")" "$RESET"
+    drawn_at=$now drawn_cols=$cols
+  fi
+  key=""
+  IFS= read -rsn1 -t 1 key
   case $key in q|$'\033') exit 0 ;; esac
 done

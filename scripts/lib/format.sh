@@ -35,3 +35,18 @@ usage_color() { # used_pct
   else echo "$COLOR_OK"
   fi
 }
+
+# The status-line marker for a snapshot status that needs action, if any.
+status_marker() { # status
+  case $1 in
+    signed_out) echo '!login' ;;
+    missing_dep) echo '!deps' ;;
+    bad_shape) echo '!format' ;;
+    error) echo '!error' ;;
+  esac
+}
+
+# Is the last good reading, taken at ok_at, too old to trust at now?
+is_stale() { # ok_at now
+  [ $(($2 - $1)) -gt "$STALE_AFTER" ]
+}

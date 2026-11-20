@@ -101,7 +101,7 @@ Codex   5h 81% 47m
 OUT
 }
 
-@test "a provider with no snapshot yet is listed as waiting" {
+@test "a provider with no snapshot yet is shown as pending" {
   snap codex ok 0 5h:81:2820
   [ "$(details 80 | grep '^Claude')" = 'Claude   … no reading yet' ]
 }
@@ -130,4 +130,15 @@ OUT
   opt @ai_usage_providers codex
   out=$(COLUMNS=59 TZ=UTC AI_USAGE_NOW=$NOW "$ROOT/scripts/details.sh" --once)
   [ "$out" = $'\033[38;2;186;194;222mCodex  \033[0m \033[38;2;108;112;134m5h \033[38;2;249;226;175m81%\033[0m \033[38;2;108;112;134m47m\033[0m\033[0m' ]
+}
+
+@test "the table reads the shared provider fixtures" {
+  seed_snapshot_claude five-hour-weekly "$NOW"
+  seed_snapshot primary-secondary "$NOW"
+  seed_snapshot_cursor unified-weekly "$NOW"
+  matches "$(details 59)" <<'OUT'
+Claude  wk 67% 7d2h  5h 28% 7h7m
+Codex   5h 81% 47m  wk 35% 5d2h
+Cursor  wk 58% 2d1h
+OUT
 }

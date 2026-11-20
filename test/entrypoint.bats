@@ -157,3 +157,13 @@ OPTS
   load_plugin
   [ ! -s "$TMUX_SHIM_BIND_LOG" ]
 }
+
+@test "without jq no details key is bound" {
+  export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
+  echo 'status-right #{ai_usage}' >"$TMUX_SHIM_OPTIONS"
+  mkdir -p "$BATS_TEST_TMPDIR/bin"
+  printf '#!/bin/sh\nexit 127\n' >"$BATS_TEST_TMPDIR/bin/jq"
+  chmod +x "$BATS_TEST_TMPDIR/bin/jq"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH" load_plugin
+  [ ! -s "$TMUX_SHIM_BIND_LOG" ]
+}
