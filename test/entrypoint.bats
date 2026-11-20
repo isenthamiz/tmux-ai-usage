@@ -136,3 +136,24 @@ OPTS
   grep -q 'set-option -gq @ai_usage_focus off' "$TMUX_SHIM_SET_LOG"
   grep -Fxq "set-option -gq status-right #('$ROOT/scripts/render.sh' all)" "$TMUX_SHIM_SET_LOG"
 }
+
+@test "prefix + u opens the details popup by default" {
+  export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
+  echo 'status-right #{ai_usage}' >"$TMUX_SHIM_OPTIONS"
+  load_plugin
+  [ "$(cat "$TMUX_SHIM_BIND_LOG")" = "bind-key -T prefix u display-popup -E -w 80% -h 60% -T  AI usage  '$ROOT/scripts/details.sh'" ]
+}
+
+@test "@ai_usage_details_key picks the key" {
+  export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
+  printf '%s\n' 'status-right #{ai_usage}' '@ai_usage_details_key U' >"$TMUX_SHIM_OPTIONS"
+  load_plugin
+  [[ "$(cat "$TMUX_SHIM_BIND_LOG")" == 'bind-key -T prefix U display-popup '* ]]
+}
+
+@test "an empty @ai_usage_details_key binds nothing" {
+  export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
+  printf '%s\n' 'status-right #{ai_usage}' "@ai_usage_details_key ''" >"$TMUX_SHIM_OPTIONS"
+  load_plugin
+  [ ! -s "$TMUX_SHIM_BIND_LOG" ]
+}

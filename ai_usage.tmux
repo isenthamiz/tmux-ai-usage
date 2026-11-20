@@ -46,3 +46,16 @@ for option in status-left status-right; do
   value=$(tmux show-option -gqv "$option")
   tmux set-option -gq "$option" "$(interpolate_cmd "$value")"
 done
+
+# prefix + @ai_usage_details_key opens the details popup. Unset means `u`;
+# set to "" binds nothing, which only the name-and-value form can tell apart.
+details_key=u
+line=$(tmux show-options -gq @ai_usage_details_key 2>/dev/null)
+if [ -n "$line" ]; then
+  details_key=${line#* }
+  case $details_key in \"*\"|\'*\') details_key=${details_key:1:${#details_key}-2} ;; esac
+fi
+if [ -n "$details_key" ]; then
+  tmux bind-key -T prefix "$details_key" display-popup -E -w 80% -h 60% \
+    -T ' AI usage ' "'$DIR/scripts/details.sh'"
+fi
