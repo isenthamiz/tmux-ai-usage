@@ -101,13 +101,11 @@ _format_piece() {
 
   local marker=""
   case $status in
-    signed_out) marker='!login' ;;
-    missing_dep) marker='!deps' ;;
-    bad_shape) marker='!format' ;;
+    signed_out|missing_dep|bad_shape) marker=$(status_marker "$status") ;;
     error) # only when there is no good reading to fall back on
       if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ] ||
          [ "${ok_at:-0}" = 0 ]; then
-        marker='!error'
+        marker=$(status_marker error)
       fi ;;
   esac
   if [ -n "$marker" ]; then
@@ -131,7 +129,7 @@ _format_piece() {
 
   local label_color=$COLOR_TEXT dim=$COLOR_DIM bar_color tilde=""
   bar_color=$(usage_color "$used_pct")
-  if [ $((now - ok_at)) -gt "$STALE_AFTER" ]; then
+  if is_stale "$ok_at" "$now"; then
     label_color=$COLOR_DIM
     bar_color=$COLOR_DIM
     tilde='~'

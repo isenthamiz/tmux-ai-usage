@@ -181,6 +181,14 @@ Focus changes how `#{ai_usage}` is rewritten when the plugin loads, so turning i
 |---|---|---|
 | `@ai_usage_focus` | `off`, `on` | `off` |
 
+**Details popup**
+
+`prefix + u` opens a popup listing every quota window of every enabled provider, most-used first, with its progress bar, percentage, time until reset and the reset as local clock time. Problems are spelled out with their fix (for example `!login Run \`codex login\`.`), and a stale reading shows how old the last good reading is. Below about 60 columns it shows one line per provider. `q` or `Esc` closes it. Like the status line, it only reads cached usage snapshots.
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_details_key` | A key in the prefix table; empty binds nothing. Read at load, so a change needs a reload | `u` |
+
 **Bar**
 
 | Option | Value | Default |
@@ -271,7 +279,7 @@ Healthy readings look like the example at the top: bar colour follows warn/crit 
 `scripts/doctor.sh` reads **cached snapshots only** (no live fetch). From a shell inside a tmux session it uses your global tmux options; you can also bind it:
 
 ```tmux
-bind-key u run-shell 'bash /path/to/tmux-ai-usage/scripts/doctor.sh'
+bind-key D run-shell 'bash /path/to/tmux-ai-usage/scripts/doctor.sh'
 ```
 
 Replace `/path/to/tmux-ai-usage` with the plugin directory TPM cloned (often `~/.tmux/plugins/tmux-ai-usage`).
