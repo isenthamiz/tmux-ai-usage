@@ -115,14 +115,14 @@ countdown_part() { sed -E 's/^.*#\[fg=[^]]*\]([^#]*)#\[fg=default\]$/\1/' <<<"$o
   [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
 }
 
-@test "a stale reading is dim with a tilde before the percentage" {
+@test "a stale reading is dim with a tilde before the progress bar" {
   seed_snapshot primary-only $NOW
   patch_snapshot --argjson ok $((NOW - 901)) '.ok_at = $ok'
   AI_USAGE_NOW=$NOW run render codex
   [ "$output" = '#[fg=#6c7086]cx #[fg=#6c7086]wk #[fg=#6c7086]~▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
 }
 
-@test "a window past its reset time shows 0% with no countdown" {
+@test "a window past its reset time shows an empty progress bar with no countdown" {
   seed_window 5h 81 $((NOW - 120))
   AI_USAGE_NOW=$NOW run render codex
   [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#a6e3a1]▱▱▱▱▱#[fg=default]' ]

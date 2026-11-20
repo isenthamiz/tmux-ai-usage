@@ -113,8 +113,12 @@ seed_all_providers() {
   opt @ai_usage_step_widths '"80 110 140 180"'
   opt @ai_usage_step 5
   AI_USAGE_NOW=$NOW run render codex
-  [[ "$output" == '#{?#{e|>=:#{client_width},180},'* ]]
-  [[ "$output" == *'#{?#{e|>=:#{client_width},80},'* ]]
+  [ "$output" = "$(nested \
+    '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#a6e3a1]▰▱▱▱▱ #[fg=#6c7086]1h' \
+    '#[fg=#bac2de]cx #[fg=#a6e3a1]▰▱▱▱▱ #[fg=#6c7086]1h' \
+    '#[fg=#bac2de]cx #[fg=#a6e3a1]▰▱▱▱▱' \
+    '#[fg=#bac2de]cx #[fg=#a6e3a1]10%' \
+    '#[fg=#a6e3a1]cx')" ]
 }
 
 @test "before tmux 3.2 auto renders the full step" {
@@ -122,6 +126,14 @@ seed_all_providers() {
   opt @ai_usage_tmux_version 3.1c
   AI_USAGE_NOW=$NOW run render codex
   [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#a6e3a1]▰▱▱▱▱ #[fg=#6c7086]1h#[fg=default]' ]
+}
+
+@test "before tmux 3.2 #{ai_usage} renders the full step" {
+  seed_all_providers
+  opt @ai_usage_providers 'codex cursor'
+  opt @ai_usage_tmux_version 3.1c
+  AI_USAGE_NOW=$NOW run render all
+  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#f9e2af]▰▰▰▰▱ #[fg=#6c7086]47m#[fg=#6c7086] │ #[fg=#bac2de]cu #[fg=#6c7086]wk #[fg=#a6e3a1]▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
 }
 
 @test "before tmux 3.2 a forced step still applies" {
