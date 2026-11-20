@@ -99,3 +99,13 @@ seed_status() { # status [ok_at]
 
 # Pin render.sh to one step instead of the client_width conditional.
 force_step() { echo "@ai_usage_step $1" >> "$TMUX_SHIM_OPTIONS"; }
+
+# The nested client_width conditional render.sh prints for `auto`.
+nested() { # full s1 s2 s3 s4 [widths for full, step 1, 2, 3]
+  local w1=${6:-180} w2=${7:-140} w3=${8:-110} w4=${9:-80}
+  printf '#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,%s}}}}#[fg=default]' \
+    "$w1" "$1" "$w2" "$2" "$w3" "$3" "$w4" "$4" "$5"
+}
+
+# Set one tmux option for render.sh.
+opt() { echo "$1 $2" >> "$TMUX_SHIM_OPTIONS"; }

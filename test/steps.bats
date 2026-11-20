@@ -7,15 +7,6 @@ setup() { setup_env; }
 
 NOW=1795074751
 
-# The nested client_width conditional render.sh prints for `auto`.
-nested() { # full s1 s2 s3 s4 [widths...]
-  local w1=${6:-180} w2=${7:-140} w3=${8:-110} w4=${9:-80}
-  printf '#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,%s}}}}#[fg=default]' \
-    "$w1" "$1" "$w2" "$2" "$w3" "$3" "$w4" "$4" "$5"
-}
-
-opt() { echo "$1 $2" >> "$TMUX_SHIM_OPTIONS"; }
-
 @test "auto prints every step inside one client_width conditional" {
   seed_snapshot primary-only $NOW
   AI_USAGE_NOW=$NOW run render codex
