@@ -2,13 +2,15 @@
 
 A [TPM](https://github.com/tmux-plugins/tpm) plugin that draws **plan-quota usage bars** in the tmux status line for Claude, Codex, and Cursor. Each bar shows how full the selected quota window is and the time until it resets. Readings are cached and refreshed in the background; the status line never blocks on network I/O.
 
-**Platform:** macOS only in v1.
+**Platform:** macOS only in v1. tmux ≥ 3.2 for width-aware steps.
 
-Example (with default labels and colours):
+Example (with default labels and colours, on a wide terminal):
 
 ```
-cl wk ▰▰▰▱▱ 67% 3d4h │ cx 5h ▰▰▰▰▱ 81% 47m │ cu wk ▰▰▰▱▱ 58% 4d2h
+cl wk ▰▰▰▱▱ 3d4h │ cx 5h ▰▰▰▰▱ 47m │ cu wk ▰▰▰▱▱ 4d2h
 ```
+
+On narrower terminals the bars shrink in [steps](#reference), down to `cl cx cu` in their usage colours below 80 columns. `#{ai_usage}` can also [rotate](#reference) through providers one at a time or [focus](#reference) on the agent in the active pane, and `prefix + u` opens a [details popup](#reference) with every quota window.
 
 Terms such as *plan quota*, *quota window*, and *usage snapshot* are defined in [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -32,10 +34,10 @@ Put one of these tokens in `status-left` or `status-right` (often via your theme
 
 | Token | Renders |
 |---|---|
-| `#{ai_usage}` | All enabled providers, joined with `@ai_usage_separator` |
-| `#{ai_usage_claude}` | Claude only |
-| `#{ai_usage_codex}` | Codex only |
-| `#{ai_usage_cursor}` | Cursor only |
+| `#{ai_usage}` | All enabled providers, joined with `@ai_usage_separator`; or one at a time with rotation, or the focused one with focus |
+| `#{ai_usage_claude}` | Claude only (follows the step; ignores rotation and focus) |
+| `#{ai_usage_codex}` | Codex only (same) |
+| `#{ai_usage_cursor}` | Cursor only (same) |
 
 On load, the plugin replaces each token with a `#(…/scripts/render.sh …)` command. A per-provider token still works even if that provider is omitted from `@ai_usage_providers`.
 
@@ -68,6 +70,8 @@ run '~/.tmux/plugins/tpm/tpm'
 - Options can go anywhere in `~/.tmux.conf`; they do not have to come before the plugin line.
 - The status line reads options on every redraw, so a change applies on the next redraw. You can try one live with `tmux set -g @ai_usage_bar_width 0`.
 - Adding or moving a `#{ai_usage…}` token in `status-left` or `status-right` needs a reload (`prefix + r`) or a tmux restart, because tokens are replaced when the plugin loads.
+- `@ai_usage_focus` and `@ai_usage_details_key` are also read only when the plugin loads (they change the token rewrite and the key table), so changing them needs a reload too.
+- Width-aware steps need tmux ≥ 3.2. On older tmux the full step is always shown, unless `@ai_usage_step` forces another.
 - Invalid values are reported at load time, one `display-message` per bad option, and reset to their defaults. A value that becomes invalid later silently falls back to the default.
 
 ### Recipes
@@ -111,6 +115,24 @@ Always the compact step, whatever the width:
 
 ```tmux
 set -g @ai_usage_step '2'
+```
+
+Show only the provider whose agent runs in the active pane (needs a reload):
+
+```tmux
+set -g @ai_usage_focus 'on'
+```
+
+Open the details popup with `prefix + U` instead of `prefix + u` (needs a reload):
+
+```tmux
+set -g @ai_usage_details_key 'U'
+```
+
+Never bind a details key:
+
+```tmux
+set -g @ai_usage_details_key ''
 ```
 
 Each provider in its own place:
@@ -260,19 +282,24 @@ Spend, budgets, and conversation context are out of scope; those fields are igno
 
 ## Status-line states
 
-Markers are fixed in v1. A provider keeps its slot in `#{ai_usage}` even when something is wrong.
+Markers are fixed in v1. A provider keeps its place in `#{ai_usage}` even when something is wrong.
 
-| What you see | Meaning |
-|---|---|
-| `cl …` (dim) | **Pending** — no snapshot yet; first refresh may still be running |
-| `cx 5h ▰▰▰▰▱ ~81% 47m` (dim, `~` before %) | **Stale** — last good reading is older than `@ai_usage_stale_after` |
-| `cl !login` | Not signed in (`signed_out`) |
-| `cx !deps` | Missing dependency or Keychain refused (`missing_dep`) |
-| `cu !format` | Provider response did not match a known shape (`bad_shape`) |
-| `cl !error` | Transient failure with no prior good reading (`error`) |
-| `!jq` | `jq` missing at plugin load |
+| What you see (full step) | At step 4 | Meaning |
+|---|---|---|
+| `cx 5h ▰▰▰▰▱ 47m` | `cx` in its usage colour | **OK** — or a transient error while the last good reading is still fresh |
+| `cl …` (dim) | `cl` (dim) | **Pending** — no snapshot yet; the first refresh may still be running |
+| `cx 5h ~▰▰▰▰▱ 47m` (dim) | `cx` (dim, no `~`) | **Stale** — the last good reading is older than `@ai_usage_stale_after` |
+| `cl !login` | `cl!` | Not signed in (`signed_out`) |
+| `cx !deps` | `cx!` | Missing dependency or Keychain refused (`missing_dep`) |
+| `cu !format` | `cu!` | Provider response did not match a known shape (`bad_shape`) |
+| `cl !error` | `cl!` | Transient failure with no prior good reading (`error`) |
+| `!jq` | `!jq` | `jq` missing at plugin load |
 
-Healthy readings look like the example at the top: bar colour follows warn/crit thresholds; label, window name, and countdown use text/dim colours.
+- `~` sits immediately before whatever shows usage: the progress bar, or the percentage at step 3 (`cx ~81%`) and with `@ai_usage_bar_width 0`.
+- The markers read the same from full to step 3. At step 4 they become `<label>!` in the crit colour, so "action needed" stays distinct from a crit-coloured label meaning high usage.
+- A window whose reset time has passed counts as 0% (an empty progress bar, or `0%`) with no countdown until the next reading.
+- The progress bar and percentage colour follow the warn/crit thresholds; the provider label uses the text colour (the usage colour at step 4); the window label, countdown and separator are dim.
+- The [details popup](#reference) spells each problem out with its fix.
 
 ## Diagnostics
 
