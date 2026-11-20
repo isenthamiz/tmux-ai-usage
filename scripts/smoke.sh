@@ -21,10 +21,18 @@ _acquire_failure_snapshot() { # provider status err
 }
 
 _smoke_fetch() { # provider
-  local provider=$1 err acquire_rc raw new_snapshot
+  local provider=$1 err acquire_rc raw new_snapshot acquire_script normalize_jq
+  acquire_script=$(provider_acquire_path "$DIR" "$provider" "$PROFILE") || {
+    echo "smoke: no acquire for profile $PROFILE provider $provider" >&2
+    return 1
+  }
+  normalize_jq=$(provider_normalize_path "$DIR" "$provider" "$PROFILE") || {
+    echo "smoke: no normalize for profile $PROFILE provider $provider" >&2
+    return 1
+  }
   err=$(mktemp)
   acquire_rc=0
-  raw=$(run_with_timeout 20 "$DIR/providers/$provider/acquire.sh" 2>"$err") || acquire_rc=$?
+  raw=$(run_with_timeout 20 "$acquire_script" 2>"$err") || acquire_rc=$?
   if [ "$acquire_rc" -ne 0 ]; then
     case "$acquire_rc" in
       2) new_snapshot=$(_acquire_failure_snapshot "$provider" signed_out "$(head -1 "$err")") ;;
@@ -35,7 +43,7 @@ _smoke_fetch() { # provider
         ;;
     esac
   elif ! new_snapshot=$(printf '%s' "$raw" |
-      jq --argjson now "$now" -L "$DIR/lib" -f "$DIR/providers/$provider/normalize.jq"); then
+      jq --argjson now "$now" -L "$DIR/lib" -f "$normalize_jq"); then
     new_snapshot=$(_acquire_failure_snapshot "$provider" error "normalize failed")
   fi
   rm -f "$err"
@@ -52,21 +60,10 @@ _print_missing_dep() { # provider dep_name
 }
 
 for p in $(list_providers "$DIR"); do
-  if [ "$p" = codex ]; then
-    if ! find_binary curl >/dev/null; then
-      _print_missing_dep "$p" curl
-      continue
-    fi
-  elif [ "$p" = claude ]; then
-    if ! find_claude_binary >/dev/null; then
-      _print_missing_dep "$p" "claude CLI"
-      continue
-    fi
-  elif [ "$p" = cursor ]; then
-    if miss=$(cursor_missing_dep); then
-      _print_missing_dep "$p" "$miss"
-      continue
-    fi
+  if ! provider_refresh_deps_ok "$p" "$PROFILE" >/dev/null 2>&1; then
+    dep=$(provider_refresh_deps_ok "$p" "$PROFILE" 2>&1 || true)
+    _print_missing_dep "$p" "$dep"
+    continue
   fi
   _smoke_fetch "$p"
 done

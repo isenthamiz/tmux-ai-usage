@@ -52,21 +52,22 @@ _acquire_failure_snapshot() { # status err
     '{provider: $p, status: $st, fetched_at: $now, ok_at: null, error: $err, windows: []}'
 }
 
-if [ "$provider" = codex ]; then
-  if ! find_binary curl >/dev/null; then
-    _write_merged "$(_acquire_failure_snapshot missing_dep "curl not found")"
-    exit 0
-  fi
-elif [ "$provider" = claude ]; then
-  if ! find_claude_binary >/dev/null; then
-    _write_merged "$(_acquire_failure_snapshot missing_dep "claude CLI not found")"
-    exit 0
-  fi
-elif [ "$provider" = cursor ]; then
-  if miss=$(cursor_missing_dep); then
-    _write_merged "$(_acquire_failure_snapshot missing_dep "$miss not found")"
-    exit 0
-  fi
+if ! provider_refresh_deps_ok "$provider" "$PROFILE" >/dev/null; then
+  dep_msg=$(provider_refresh_deps_ok "$provider" "$PROFILE" 2>&1 || true)
+  _write_merged "$(_acquire_failure_snapshot missing_dep "$dep_msg")"
+  exit 0
+fi
+
+acquire_script=""
+if ! acquire_script=$(provider_acquire_path "$DIR" "$provider" "$PROFILE"); then
+  _write_merged "$(_acquire_failure_snapshot error "no acquire script for profile $PROFILE")"
+  exit 0
+fi
+
+normalize_jq=""
+if ! normalize_jq=$(provider_normalize_path "$DIR" "$provider" "$PROFILE"); then
+  _write_merged "$(_acquire_failure_snapshot error "no normalize filter for profile $PROFILE")"
+  exit 0
 fi
 
 err=$(mktemp)
@@ -74,7 +75,7 @@ retry_after=""
 raw_response=""
 
 acquire_rc=0
-raw_response=$(run_with_timeout 20 "$DIR/providers/$provider/acquire.sh" 2>"$err") || acquire_rc=$?
+raw_response=$(run_with_timeout 20 "$acquire_script" 2>"$err") || acquire_rc=$?
 if [ "$acquire_rc" -ne 0 ]; then
   case "$acquire_rc" in
     2)
@@ -97,7 +98,7 @@ if [ "$acquire_rc" -ne 0 ]; then
       ;;
   esac
 elif ! new_snapshot=$(printf '%s' "$raw_response" |
-    jq --argjson now "$now" -L "$DIR/lib" -f "$DIR/providers/$provider/normalize.jq"); then
+    jq --argjson now "$now" -L "$DIR/lib" -f "$normalize_jq"); then
   new_snapshot=$(_acquire_failure_snapshot error "normalize failed")
 else
   retry_after=""

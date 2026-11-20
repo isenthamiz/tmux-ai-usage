@@ -235,6 +235,9 @@ If a catppuccin theme is loaded, colours follow its palette; otherwise the hex d
 | `@ai_usage_refresh_interval` | Seconds between fetches; values below 60 are raised to 60 | `60` |
 | `@ai_usage_stale_after` | Seconds before a reading is shown as stale; must be ≥ the refresh interval | `900` |
 | `@ai_usage_cache_dir` | Path; created with mode `700` if missing | `${XDG_CACHE_HOME:-$HOME/.cache}/tmux-ai-usage` |
+| `@ai_usage_profile` | `personal` (default) or `ebay` | `personal` |
+
+For eBay corporate Macs, set `ebay` and follow [docs/EBAY.md](docs/EBAY.md) (aIQ capture files, corp Git sync). Personal installs keep `personal`.
 
 ## Dependencies
 

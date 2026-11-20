@@ -39,6 +39,13 @@ valid_step() { # value
   return 1
 }
 
+valid_profile() { # value
+  case $1 in
+    personal|ebay) return 0 ;;
+  esac
+  return 1
+}
+
 # tmux gained the e|>=: comparison the step conditional needs in 3.2.
 version_has_expr() { # tmux version, e.g. 3.5a, 3.1c, next-3.6
   local v=${1#next-} major minor
@@ -78,6 +85,7 @@ load_options() {
   ROTATE_INTERVAL=10
   STATUS_INTERVAL=15
   TMUX_HAS_EXPR=1
+  PROFILE=personal
 
   while IFS= read -r line; do
     name=${line%% *}
@@ -141,8 +149,14 @@ load_options() {
         version_has_expr "$value" || TMUX_HAS_EXPR=0 ;;
       @ai_usage_cache_dir)
         [ -n "$value" ] && CACHE_DIR=$value ;;
+      @ai_usage_profile)
+        valid_profile "$value" && PROFILE=$value ;;
     esac
   done <<<"$(tmux show-options -g 2>/dev/null)"
+
+  if [ -n "${AI_USAGE_PROFILE:-}" ] && valid_profile "$AI_USAGE_PROFILE"; then
+    PROFILE=$AI_USAGE_PROFILE
+  fi
 
   PROVIDERS=$(_valid_providers "$raw_providers")
 

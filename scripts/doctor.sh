@@ -50,9 +50,10 @@ fi
 
 for p in $(list_providers "$DIR"); do
   _print_provider_snapshot "$p"
-  printf 'provider=%s\tdeps %s\n' "$p" "$(provider_deps_line "$p")"
+  printf 'provider=%s\tdeps %s\n' "$p" "$(provider_deps_line "$p" "$PROFILE")"
 done
 
+printf 'options profile=%s\n' "$PROFILE"
 printf 'options providers=%s\n' "$PROVIDERS"
 printf 'options cache_dir=%s\n' "$(cache_dir)"
 printf 'options refresh_interval=%s\n' "$REFRESH_INTERVAL"

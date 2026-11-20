@@ -18,7 +18,15 @@ find_binary() { # name [extra-dir...]
 }
 
 find_claude_binary() {
-  find_binary claude "$HOME/.local/bin" "$HOME/.claude/local"
+  find_binary claude "$HOME/.claude-code-env/bin" "$HOME/.local/bin" "$HOME/.claude/local"
+}
+
+find_cursor_cli_binary() {
+  find_binary agent "$HOME/.local/bin" || find_binary cursor "$HOME/.local/bin"
+}
+
+find_codex_binary() {
+  find_binary codex "$HOME/.local/bin"
 }
 
 openssl_has_kdf() { # path-to-openssl
