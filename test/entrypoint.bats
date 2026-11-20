@@ -51,3 +51,40 @@ EOF
   grep -q 'jq not found' "$TMUX_SHIM_MSG_LOG"
   grep -Fq '#[fg=#f38ba8]!jq' "$TMUX_SHIM_SET_LOG"
 }
+@test "step widths that are not four descending integers are reset at load" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_step_widths 80 110 140 180
+OPTS
+  load_plugin
+  grep -q '@ai_usage_step_widths invalid' "$TMUX_SHIM_MSG_LOG"
+  grep -q 'set-option -gq @ai_usage_step_widths 180 140 110 80' "$TMUX_SHIM_SET_LOG"
+}
+
+@test "an unknown step is reset to auto at load" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_step 5
+OPTS
+  load_plugin
+  grep -q '@ai_usage_step invalid' "$TMUX_SHIM_MSG_LOG"
+  grep -q 'set-option -gq @ai_usage_step auto' "$TMUX_SHIM_SET_LOG"
+}
+
+@test "valid step options load without a message" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_step_widths 200 150 100 50
+@ai_usage_step 2
+OPTS
+  load_plugin
+  [ ! -s "$TMUX_SHIM_MSG_LOG" ]
+}
+
+@test "the tmux version is recorded at load for the renderer" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+OPTS
+  TMUX_SHIM_VERSION=3.1c load_plugin
+  grep -q 'set-option -gq @ai_usage_tmux_version 3.1c' "$TMUX_SHIM_SET_LOG"
+}

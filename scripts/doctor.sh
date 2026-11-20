@@ -63,3 +63,4 @@ printf 'options claude_label=%s codex_label=%s cursor_label=%s\n' \
 printf 'options claude_window=%s codex_window=%s cursor_window=%s\n' \
   "$CLAUDE_WINDOW" "$CODEX_WINDOW" "$CURSOR_WINDOW"
 printf "options separator='%s'\n" "$SEPARATOR"
+printf "options step=%s step_widths='%s'\n" "$STEP" "$STEP_WIDTHS"

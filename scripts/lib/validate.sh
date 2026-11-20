@@ -1,5 +1,7 @@
 # shellcheck shell=bash
 # Validate @ai_usage_* options once at plugin load; reset invalid values and notify.
+# shellcheck source=scripts/lib/options.sh
+. "$(dirname "${BASH_SOURCE[0]}")/options.sh"
 
 _is_uint() {
   case $1 in ''|*[!0-9]*) return 1 ;;
@@ -110,6 +112,20 @@ validate_ai_usage_options() {
       _option_report_invalid '@ai_usage_stale_after' "$value (< refresh $ri)" '900'
     fi
   fi
+
+  value=$(tmux show-options -gqv @ai_usage_step_widths 2>/dev/null) || value=""
+  if [ -n "$value" ] && ! valid_step_widths "$value"; then
+    _option_report_invalid '@ai_usage_step_widths' "$value" '180 140 110 80'
+  fi
+
+  value=$(tmux show-options -gqv @ai_usage_step 2>/dev/null) || value=""
+  if [ -n "$value" ] && ! valid_step "$value"; then
+    _option_report_invalid '@ai_usage_step' "$value" 'auto'
+  fi
+
+  # The renderer reads this instead of running tmux -V on every redraw.
+  value=$(tmux -V 2>/dev/null) || value=""
+  tmux set-option -gq @ai_usage_tmux_version "${value#tmux }"
 
   value=$(tmux show-options -gqv @ai_usage_cache_dir 2>/dev/null) || value=""
   if [ -n "$value" ]; then

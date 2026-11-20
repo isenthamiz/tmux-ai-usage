@@ -3,7 +3,7 @@
 # shellcheck disable=SC2030,SC2031,SC2016
 load test_helper
 
-setup() { setup_env; }
+setup() { setup_env; force_step full; }
 
 NOW=1795074751
 
@@ -13,7 +13,7 @@ NOW=1795074751
 OPTS
   seed_snapshot primary-only $NOW
   AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ 66% #[fg=#6c7086]2d1h#[fg=default]' ]
+  [ "$output" = '#[fg=#bac2de]cx #[fg=#6c7086]wk #[fg=#f9e2af]▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
 }
 
 @test "warn_at >= crit_at falls back to 60/85 thresholds" {
@@ -23,7 +23,7 @@ OPTS
 OPTS
   seed_window 5h 86 $((NOW + 3600))
   AI_USAGE_NOW=$NOW run render codex
-  [[ "$output" == *'#[fg=#f38ba8]'*▰▰▰▰▱*'86%'* ]]
+  [[ "$output" == *'#[fg=#f38ba8]▰▰▰▰▱ '* ]]
 }
 
 @test "stale_after below refresh interval falls back to default stale behaviour" {
@@ -34,7 +34,7 @@ OPTS
   seed_snapshot primary-only $NOW
   patch_snapshot --argjson ok $((NOW - 901)) '.ok_at = $ok'
   AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = '#[fg=#6c7086]cx #[fg=#6c7086]wk #[fg=#6c7086]▰▰▰▱▱ ~66% #[fg=#6c7086]2d1h#[fg=default]' ]
+  [ "$output" = '#[fg=#6c7086]cx #[fg=#6c7086]wk #[fg=#6c7086]~▰▰▰▱▱ #[fg=#6c7086]2d1h#[fg=default]' ]
 }
 
 @test "@ai_usage_bar_width 0 shows percentage only" {
@@ -62,7 +62,7 @@ OPTS
 OPTS
   seed_window 5h 55 $((NOW + 3600))
   AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = '#[fg=#444444]CX #[fg=#555555]5h #[fg=#222222]==- 55% #[fg=#555555]1h#[fg=default]' ]
+  [ "$output" = '#[fg=#444444]CX #[fg=#555555]5h #[fg=#222222]==- #[fg=#555555]1h#[fg=default]' ]
 }
 
 @test "@ai_usage_cache_dir redirects the snapshot path" {
@@ -76,7 +76,7 @@ OPTS
       windows:[{label:"wk",used_pct:10,resets_at:($now+3600),window_seconds:3600}]}' \
     >"$alt/codex.json"
   AI_USAGE_NOW=$NOW run render codex
-  [[ "$output" == *'10%'* ]]
+  [[ "$output" == *'#[fg=#a6e3a1]▰▱▱▱▱ '* ]]
 }
 
 @test "render uses one jq invocation" {
