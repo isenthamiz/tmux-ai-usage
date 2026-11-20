@@ -1,0 +1,6 @@
+#!/bin/bash
+# Test double for ps. Prints $PS_SHIM_OUTPUT (a file of `ps -o args=` lines);
+# every call is appended to $PS_SHIM_LOG.
+[ -n "${PS_SHIM_LOG:-}" ] && echo "$*" >>"$PS_SHIM_LOG"
+[ -n "${PS_SHIM_OUTPUT:-}" ] && [ -f "$PS_SHIM_OUTPUT" ] && cat "$PS_SHIM_OUTPUT"
+exit 0

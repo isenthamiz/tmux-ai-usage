@@ -108,3 +108,31 @@ OPTS
   grep -q '@ai_usage_rotate_interval invalid' "$TMUX_SHIM_MSG_LOG"
   grep -q 'set-option -gq @ai_usage_rotate_interval 10' "$TMUX_SHIM_SET_LOG"
 }
+
+@test "with focus on, #{ai_usage} passes the pane's command and tty" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage} #{ai_usage_claude}
+@ai_usage_focus on
+OPTS
+  load_plugin
+  grep -Fq "set-option -gq status-right #('$ROOT/scripts/render.sh' all #{q:pane_current_command} #{q:pane_tty}) #('$ROOT/scripts/render.sh' claude)" "$TMUX_SHIM_SET_LOG"
+}
+
+@test "with focus off, #{ai_usage} passes no pane arguments" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+OPTS
+  load_plugin
+  grep -Fxq "set-option -gq status-right #('$ROOT/scripts/render.sh' all)" "$TMUX_SHIM_SET_LOG"
+}
+
+@test "an unknown focus value is reset to off at load" {
+  cat >"$TMUX_SHIM_OPTIONS" <<'OPTS'
+status-right #{ai_usage}
+@ai_usage_focus yes
+OPTS
+  load_plugin
+  grep -q '@ai_usage_focus invalid' "$TMUX_SHIM_MSG_LOG"
+  grep -q 'set-option -gq @ai_usage_focus off' "$TMUX_SHIM_SET_LOG"
+  grep -Fxq "set-option -gq status-right #('$ROOT/scripts/render.sh' all)" "$TMUX_SHIM_SET_LOG"
+}

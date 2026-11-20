@@ -8,8 +8,12 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/lib/snapshot.sh"
 # shellcheck source=scripts/lib/format.sh
 . "$DIR/lib/format.sh"
+# shellcheck source=scripts/lib/focus.sh
+. "$DIR/lib/focus.sh"
 
 target=$1
+pane_command=${2:-}  # with @ai_usage_focus on: the active pane's command
+pane_tty=${3:-}      # ...and its tty
 now=${AI_USAGE_NOW:-$(date +%s)}
 
 load_options
@@ -215,6 +219,13 @@ rotation_pick() { # provider...
   printf '%s' "$1"
 }
 
+_is_listed() { # provider provider...: is the first among the rest?
+  local want=$1 p
+  shift
+  for p in "$@"; do [ "$p" = "$want" ] && return 0; done
+  return 1
+}
+
 load_all_render_rows
 
 if [ "$target" = all ]; then
@@ -222,7 +233,11 @@ if [ "$target" = all ]; then
   set -- $PROVIDERS
   # Every enabled provider stays fresh, including those waiting for a turn.
   for provider in "$@"; do maybe_start_refresh "$provider"; done
-  if [ "$ROTATE" = on ]; then
+  focused=""
+  [ -n "$pane_command" ] && focused=$(focus_provider "$pane_command" "$pane_tty")
+  if [ -n "$focused" ] && _is_listed "$focused" "$@"; then
+    _build_steps "$focused"
+  elif [ "$ROTATE" = on ]; then
     _build_steps "$(rotation_pick "$@")"
   else
     _build_steps "$@"

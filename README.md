@@ -171,6 +171,16 @@ With `@ai_usage_rotate on`, `#{ai_usage}` shows one provider at a time, cycling 
 | `@ai_usage_rotate` | `off`, `on` | `off` |
 | `@ai_usage_rotate_interval` | Seconds per provider; rounded up to whole `status-interval` ticks | `10` |
 
+**Focus**
+
+With `@ai_usage_focus on`, `#{ai_usage}` shows only the provider whose AI agent runs in the active pane: Claude Code, Codex or Cursor's CLI. Focus takes precedence over the side-by-side view and over rotation. In a pane with no agent, or one whose provider isn't in `@ai_usage_providers`, the usual view returns. Per-provider tokens ignore focus.
+
+Focus changes how `#{ai_usage}` is rewritten when the plugin loads, so turning it on or off needs a reload (`prefix + r`). Only the foreground process counts, so an agent suspended with `^Z` isn't detected.
+
+| Option | Value | Default |
+|---|---|---|
+| `@ai_usage_focus` | `off`, `on` | `off` |
+
 **Bar**
 
 | Option | Value | Default |
