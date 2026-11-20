@@ -101,8 +101,9 @@ _format_piece() {
     signed_out) marker='!login' ;;
     missing_dep) marker='!deps' ;;
     bad_shape) marker='!format' ;;
-    error)
-      if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ]; then
+    error) # only when there is no good reading to fall back on
+      if [ "${has_windows:-0}" != 1 ] || [ -z "$window_label" ] ||
+         [ "${ok_at:-0}" = 0 ]; then
         marker='!error'
       fi ;;
   esac

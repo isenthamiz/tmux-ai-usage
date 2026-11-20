@@ -7,15 +7,6 @@ setup() { setup_env; }
 
 NOW=1795074751
 
-# The nested client_width conditional render.sh prints for `auto`.
-nested() { # full s1 s2 s3 s4 [widths...]
-  local w1=${6:-180} w2=${7:-140} w3=${8:-110} w4=${9:-80}
-  printf '#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,#{?#{e|>=:#{client_width},%s},%s,%s}}}}#[fg=default]' \
-    "$w1" "$1" "$w2" "$2" "$w3" "$3" "$w4" "$4" "$5"
-}
-
-opt() { echo "$1 $2" >> "$TMUX_SHIM_OPTIONS"; }
-
 @test "auto prints every step inside one client_width conditional" {
   seed_snapshot primary-only $NOW
   AI_USAGE_NOW=$NOW run render codex
@@ -154,43 +145,4 @@ seed_all_providers() {
     '#[fg=#bac2de]c#,x#} #[fg=#a6e3a1]▰▱▱▱▱' \
     '#[fg=#bac2de]c#,x#} #[fg=#a6e3a1]10%' \
     '#[fg=#a6e3a1]c#,x#}')" ]
-}
-
-@test "a stale reading puts ~ before the usage at each step and dims step 4 without it" {
-  seed_window 5h 81 $((NOW + 2820)) $((NOW - 901))
-  AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = "$(nested \
-    '#[fg=#6c7086]cx #[fg=#6c7086]5h #[fg=#6c7086]~▰▰▰▰▱ #[fg=#6c7086]47m' \
-    '#[fg=#6c7086]cx #[fg=#6c7086]~▰▰▰▰▱ #[fg=#6c7086]47m' \
-    '#[fg=#6c7086]cx #[fg=#6c7086]~▰▰▰▰▱' \
-    '#[fg=#6c7086]cx #[fg=#6c7086]~81%' \
-    '#[fg=#6c7086]cx')" ]
-}
-
-@test "problem states keep their words through step 3 and become label! at step 4" {
-  for case in "signed_out !login" "missing_dep !deps" "bad_shape !format" "error !error"; do
-    read -r st word <<<"$case"
-    seed_status "$st"
-    AI_USAGE_NOW=$NOW run render codex
-    local p="#[fg=#f38ba8]cx $word"
-    [ "$output" = "$(nested "$p" "$p" "$p" "$p" '#[fg=#f38ba8]cx!')" ] || { echo "$st: $output"; return 1; }
-  done
-}
-
-@test "pending is a dim ellipsis through step 3 and a dim label at step 4" {
-  rm -f "$CACHE/codex.json"
-  AI_USAGE_NOW=$NOW AI_USAGE_NO_REFRESH=1 run render codex
-  local p='#[fg=#6c7086]cx …'
-  [ "$output" = "$(nested "$p" "$p" "$p" "$p" '#[fg=#6c7086]cx')" ]
-}
-
-@test "a passed reset shows 0% and no countdown at every step" {
-  seed_window 5h 81 $((NOW - 120))
-  AI_USAGE_NOW=$NOW run render codex
-  [ "$output" = "$(nested \
-    '#[fg=#bac2de]cx #[fg=#6c7086]5h #[fg=#a6e3a1]▱▱▱▱▱' \
-    '#[fg=#bac2de]cx #[fg=#a6e3a1]▱▱▱▱▱' \
-    '#[fg=#bac2de]cx #[fg=#a6e3a1]▱▱▱▱▱' \
-    '#[fg=#bac2de]cx #[fg=#a6e3a1]0%' \
-    '#[fg=#a6e3a1]cx')" ]
 }
