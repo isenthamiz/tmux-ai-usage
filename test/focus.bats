@@ -24,10 +24,18 @@ CX='#[fg=#f9e2af]cx#[fg=default]'
 CU='#[fg=#a6e3a1]cu#[fg=default]'
 ALL='#[fg=#f9e2af]cl #[fg=#f9e2af]cx #[fg=#a6e3a1]cu#[fg=default]'
 
-pane() { # pane_current_command [foreground ps args...]
-  local cmd=$1
+# Each process row: its args, in the foreground process group unless it
+# starts with "bg ". Written as `ps -o pgid=,tpgid=,args=` would print them.
+pane() { # pane_current_command [process...]
+  local cmd=$1 row
   shift
-  [ $# -gt 0 ] && printf '%s\n' "$@" >"$PS_SHIM_OUTPUT"
+  : >"$PS_SHIM_OUTPUT"
+  for row in "$@"; do
+    case $row in
+      'bg '*) printf '  200   300 %s\n' "${row#bg }" ;;
+      *) printf '  300   300 %s\n' "$row" ;;
+    esac >>"$PS_SHIM_OUTPUT"
+  done
   AI_USAGE_NOW=$NOW AI_USAGE_NO_REFRESH=1 render all "$cmd" "$TTY"
 }
 
@@ -47,8 +55,9 @@ ps_calls() { wc -l <"$PS_SHIM_LOG" | tr -d ' '; }
 
 @test "Cursor runs as node: one ps finds the cursor-agent path" {
   [ "$(pane node \
-    '/Users/me/.local/share/cursor-agent/versions/2026.11.19-f005e9d/node --use-system-ca /Users/me/.local/share/cursor-agent/versions/2026.11.19-f005e9d/index.js')" = "$CU" ]
-  [ "$(cat "$PS_SHIM_LOG")" = "-t $TTY -o args=" ]
+    'bg -zsh' \
+    '/Users/me/.local/bin/agent --use-system-ca /Users/me/.local/share/cursor-agent/versions/2026.11.19-f005e9d/index.js')" = "$CU" ]
+  [ "$(cat "$PS_SHIM_LOG")" = "-t $TTY -o pgid=,tpgid=,args=" ]
 }
 
 @test "Codex on older Node runs as node: ps finds the codex path" {
@@ -57,8 +66,8 @@ ps_calls() { wc -l <"$PS_SHIM_LOG" | tr -d ' '; }
 }
 
 @test "an agent behind a shell wrapper is found by ps" {
-  [ "$(pane bash '-zsh' '/bin/bash wrap.sh' '/Users/me/.local/bin/claude --resume')" = "$CL" ]
-  [ "$(pane zsh '-zsh' '/opt/homebrew/bin/codex')" = "$CX" ]
+  [ "$(pane bash 'bg -zsh' '/bin/bash wrap.sh' '/Users/me/.local/bin/claude --resume')" = "$CL" ]
+  [ "$(pane bash 'bg -zsh' '/bin/bash wrap.sh' '/opt/homebrew/bin/codex')" = "$CX" ]
 }
 
 @test "a plain shell or other node program means no focus" {
@@ -70,6 +79,7 @@ ps_calls() { wc -l <"$PS_SHIM_LOG" | tr -d ' '; }
   [ "$(pane vim)" = "$ALL" ]
   [ "$(pane python3.12)" = "$ALL" ]
   [ "$(pane 1.2)" = "$ALL" ]
+  [ "$(pane 1.2.3.4)" = "$ALL" ]
   [ "$(pane '')" = "$ALL" ]
   [ "$(ps_calls)" = 0 ]
 }
@@ -99,4 +109,25 @@ ps_calls() { wc -l <"$PS_SHIM_LOG" | tr -d ' '; }
     '#[fg=#bac2de]cx #[fg=#f9e2af]▰▰▰▰▱' \
     '#[fg=#bac2de]cx #[fg=#f9e2af]81%' \
     '#[fg=#f9e2af]cx')" ]
+}
+
+@test "only the foreground process group counts, not background jobs" {
+  [ "$(pane zsh '-zsh' 'bg /Users/me/.local/bin/claude')" = "$ALL" ]
+  [ "$(pane zsh '-zsh' 'bg vim /Users/me/notes/claude')" = "$ALL" ]
+}
+
+@test "arguments that merely mention an agent do not focus" {
+  [ "$(pane node 'node /Users/me/app.js --log /tmp/claude')" = "$ALL" ]
+  [ "$(pane bash '/bin/bash -c grep -r cursor-agent .')" = "$ALL" ]
+  [ "$(pane bash 'cat /Users/me/notes/codex')" = "$ALL" ]
+}
+
+@test "process arguments are not glob-expanded" {
+  cd "$BATS_TEST_TMPDIR" && touch claude
+  [ "$(pane bash '/bin/bash -c ls *')" = "$ALL" ]
+}
+
+@test "an empty pane command, dropped by #{q:}, means no focus" {
+  [ "$(AI_USAGE_NOW=$NOW AI_USAGE_NO_REFRESH=1 render all "$TTY")" = "$ALL" ]
+  [ "$(ps_calls)" = 0 ]
 }

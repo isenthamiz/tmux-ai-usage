@@ -64,5 +64,4 @@ printf 'options claude_window=%s codex_window=%s cursor_window=%s\n' \
   "$CLAUDE_WINDOW" "$CODEX_WINDOW" "$CURSOR_WINDOW"
 printf "options separator='%s'\n" "$SEPARATOR"
 printf "options step=%s step_widths='%s'\n" "$STEP" "$STEP_WIDTHS"
-focus=$(tmux show-options -gqv @ai_usage_focus 2>/dev/null) || focus=""
-printf 'options rotate=%s rotate_interval=%s focus=%s\n' "$ROTATE" "$ROTATE_INTERVAL" "${focus:-off}"
+printf 'options rotate=%s rotate_interval=%s focus=%s\n' "$ROTATE" "$ROTATE_INTERVAL" "$FOCUS"

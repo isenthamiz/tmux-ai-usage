@@ -74,6 +74,7 @@ load_options() {
   STEP_WIDTHS='180 140 110 80'
   STEP=auto
   ROTATE=off
+  FOCUS=off
   ROTATE_INTERVAL=10
   STATUS_INTERVAL=15
   TMUX_HAS_EXPR=1
@@ -130,6 +131,8 @@ load_options() {
         case $value in ''|*[!0-9]*) ;; *) STATUS_INTERVAL=$value ;; esac ;;
       @ai_usage_rotate)
         valid_on_off "$value" && ROTATE=$value ;;
+      @ai_usage_focus)  # read by the entrypoint at load; here for doctor.sh
+        valid_on_off "$value" && FOCUS=$value ;;
       @ai_usage_rotate_interval)
         valid_rotate_interval "$value" && ROTATE_INTERVAL=$value ;;
       @ai_usage_step)

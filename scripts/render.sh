@@ -219,13 +219,6 @@ rotation_pick() { # provider...
   printf '%s' "$1"
 }
 
-_is_listed() { # provider provider...: is the first among the rest?
-  local want=$1 p
-  shift
-  for p in "$@"; do [ "$p" = "$want" ] && return 0; done
-  return 1
-}
-
 load_all_render_rows
 
 if [ "$target" = all ]; then
@@ -235,7 +228,8 @@ if [ "$target" = all ]; then
   for provider in "$@"; do maybe_start_refresh "$provider"; done
   focused=""
   [ -n "$pane_command" ] && focused=$(focus_provider "$pane_command" "$pane_tty")
-  if [ -n "$focused" ] && _is_listed "$focused" "$@"; then
+  case " $PROVIDERS " in *" $focused "*) ;; *) focused="" ;; esac
+  if [ -n "$focused" ]; then
     _build_steps "$focused"
   elif [ "$ROTATE" = on ]; then
     _build_steps "$(rotation_pick "$@")"
