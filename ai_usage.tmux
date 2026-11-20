@@ -5,8 +5,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/scripts/lib/validate.sh"
 
 interpolate_cmd() {
-  local value=$1
-  value=${value//\#\{ai_usage\}/#(\'$DIR/scripts/render.sh\' all)}
+  local value=$1 all_args=''
+  # Focus needs the active pane's command and tty; tmux expands these per
+  # client and re-runs the job at once when they change.
+  if [ "$FOCUS" = on ]; then
+    all_args=' #{q:pane_current_command} #{q:pane_tty}'
+  fi
+  value=${value//\#\{ai_usage\}/#(\'$DIR/scripts/render.sh\' all$all_args)}
   value=${value//\#\{ai_usage_claude\}/#(\'$DIR/scripts/render.sh\' claude)}
   value=${value//\#\{ai_usage_codex\}/#(\'$DIR/scripts/render.sh\' codex)}
   value=${value//\#\{ai_usage_cursor\}/#(\'$DIR/scripts/render.sh\' cursor)}
@@ -24,6 +29,8 @@ interpolate_jq_missing() {
 }
 
 validate_ai_usage_options
+# Read once here: it changes the token rewrite, so it needs a reload.
+FOCUS=$(tmux show-options -gqv @ai_usage_focus 2>/dev/null)
 
 if ! command -v jq >/dev/null 2>&1 || ! jq -n null >/dev/null 2>&1; then
   tmux display-message 'tmux-ai-usage: jq not found'

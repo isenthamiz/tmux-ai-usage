@@ -211,7 +211,7 @@ From [How do rotation and focus behave?](https://github.com/isenthamiz/tmux-ai-u
 - **Focus** (`@ai_usage_focus on`): when the active pane runs an AI agent whose provider is enabled, only that provider is shown, overriding the side-by-side view and rotation. Otherwise the usual view shows. Other providers' problems are not surfaced while focused.
 - **Detecting the agent** (from [What does tmux report as the running command for each AI agent?](https://github.com/isenthamiz/tmux-ai-usage/issues/37)): with focus on, the token is rewritten to `#('…/render.sh' all #{q:pane_current_command} #{q:pane_tty})`; a pane switch re-runs it at once.
   - `codex` → Codex. `claude`, `claude.exe`, or a version string like `2.1.328` → Claude.
-  - `node` or a shell name → one `ps -t <pane_tty> -o args=` call; a `cursor-agent` path → Cursor, a `claude` path → Claude, a `codex` path → Codex.
+  - `node` or a shell name → one `ps -t <pane_tty> -o pgid=,tpgid=,args=` call, keeping only the foreground process group (`pgid == tpgid`), so background jobs and the pane's shell don't count; a `cursor-agent` path → Cursor, a `claude` path → Claude, a `codex` path → Codex.
   - Anything else → no focus.
 - Steps apply to the single provider like everywhere else.
 
