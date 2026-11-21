@@ -21,7 +21,7 @@ BAR_CELLS=10
 TABLE_WIDTH=56   # the widest table line: header and window rows
 PADDING=1        # cells of space inside the popup border, on every side
 CHROME=$((2 * PADDING + 2))   # padding on both sides plus the border
-TITLE=' AI usage · q close '
+TITLE=' AI usage · q close '   # as shown; styled_title colours it
 TITLE_SLACK=5    # tmux 3.5a cuts a popup title shorter than its width - 5
 RESET=$'\033[0m'
 
@@ -209,6 +209,12 @@ draw() {
   flush
 }
 
+# The title with its own colours: tmux draws plain title text in the popup
+# border's colour, which themes such as catppuccin make nearly invisible.
+styled_title() {
+  printf '#[fg=%s] AI usage #[fg=%s]· q close ' "$COLOR_TEXT" "$COLOR_DIM"
+}
+
 # Open a popup sized to the body: widest line and line count, plus padding
 # and border, at least as wide as the title, at most the client's size.
 open_popup() { # client client_width client_height
@@ -226,7 +232,7 @@ open_popup() { # client client_width client_height
   [ "$w" -gt "$cw" ] && w=$cw
   h=$((lines + CHROME))
   [ "$h" -gt "$ch" ] && h=$ch
-  tmux display-popup -c "$client" -E -w "$w" -h "$h" -T "$TITLE" \
+  tmux display-popup -c "$client" -E -w "$w" -h "$h" -T "$(styled_title)" \
     "'$SELF' --layout $LAYOUT --width $NOTE_WIDTH"
 }
 
