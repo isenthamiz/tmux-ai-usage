@@ -75,8 +75,11 @@ OUT
   snap cursor error 0
   matches "$(details 80)" <<'OUT'
 Provider Window     Usage            Resets in Resets at
-Claude   !deps Something it needs is missing. Run doctor.sh to see what.
-Codex    !format The provider answered in a format the plugin doesn't know. The plugin may need an update.
+Claude   !deps Something it needs is missing. Run
+         doctor.sh to see what.
+Codex    !format The provider answered in a format the
+         plugin doesn't know. The plugin may need an
+         update.
 Cursor   !error Temporary error; retrying automatically.
 OUT
 }
@@ -91,13 +94,15 @@ OUT
 
 @test "a stale reading shows the age of the last good reading" {
   snap codex ok 7200 5h:81:2820
-  matches "$(details 80 | grep -A1 '^Codex')" <<'OUT'
+  matches "$(details 80 | grep -A2 '^Codex')" <<'OUT'
 Codex    5h         ▰▰▰▰▰▰▰▰▱▱   81% 47m       Thu 08:39
-         ~ last good reading 2h ago; numbers may be out of date
+         ~ last good reading 2h ago; numbers may be out
+         of date
 OUT
-  matches "$(details 59 | grep -A1 '^Codex')" <<'OUT'
+  matches "$(details 59 | grep -A2 '^Codex')" <<'OUT'
 Codex   5h 81% 47m
-        ~ last good reading 2h ago; numbers may be out of date
+        ~ last good reading 2h ago; numbers may be out
+        of date
 OUT
 }
 
@@ -141,4 +146,59 @@ Claude  wk 67% 7d2h  5h 28% 7h7m
 Codex   5h 81% 47m  wk 35% 5d2h
 Cursor  wk 58% 2d1h
 OUT
+}
+
+# --open as the key binding runs it: client name, width and height.
+open_popup() { # client_width client_height
+  export TMUX_SHIM_POPUP_LOG="$BATS_TEST_TMPDIR/popup.log"
+  : >"$TMUX_SHIM_POPUP_LOG"
+  TZ=UTC AI_USAGE_NOW=$NOW "$ROOT/scripts/details.sh" --open client0 "$1" "$2"
+  cat "$TMUX_SHIM_POPUP_LOG"
+}
+
+popup_cmd() { # width height layout wrap-width
+  printf "display-popup -c client0 -E -w %s -h %s -T  AI usage · q close  '%s' --layout %s --width %s" \
+    "$1" "$2" "$ROOT/scripts/details.sh" "$3" "$4"
+}
+
+@test "the popup opens at the table's size plus padding and border" {
+  snap claude ok 0 5h:19:13080 wk:67:274000
+  snap codex ok 0 5h:81:2820
+  snap cursor ok 0 wk:58:86400
+  # Body: header + 4 rows, 56 columns wide. +2 padding, +2 border.
+  [ "$(open_popup 200 50)" = "$(popup_cmd 60 9 table 56)" ]
+}
+
+seed_three() {
+  snap claude ok 0 5h:19:13080 wk:0:601200
+  snap codex ok 0 5h:81:2820
+  snap cursor ok 0 wk:58:86400
+}
+
+@test "a client too narrow for the table gets a one-line popup sized to it" {
+  seed_three
+  # Widest line "Claude  5h 19% 3h38m  wk 0% 6d23h" is 33; 3 lines.
+  # Notes would wrap to 59 - 4 = 55.
+  [ "$(open_popup 59 30)" = "$(popup_cmd 37 7 line 55)" ]
+}
+
+@test "the popup never exceeds the client" {
+  seed_three
+  [ "$(open_popup 50 6)" = "$(popup_cmd 37 6 line 46)" ]
+  [ "$(open_popup 30 40)" = "$(popup_cmd 30 7 line 26)" ]
+}
+
+@test "the popup is at least as wide as its title" {
+  snap codex ok 0 5h:1:120
+  opt @ai_usage_providers codex
+  # "Codex   5h 1% 2m" is 16 + 4 = 20, under the title's 20 + 2.
+  [ "$(open_popup 59 30)" = "$(popup_cmd 22 5 line 55)" ]
+}
+
+@test "wrapped notes keep the table popup at the table's width" {
+  snap claude ok 0 5h:19:13080
+  snap codex bad_shape 0
+  snap cursor ok 0 wk:58:86400
+  # header, claude row, 3 wrapped !format lines, cursor row = 6 lines.
+  [ "$(open_popup 200 50)" = "$(popup_cmd 60 10 table 56)" ]
 }
