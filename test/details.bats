@@ -191,8 +191,9 @@ seed_three() {
 @test "the popup is at least as wide as its title" {
   snap codex ok 0 5h:1:120
   opt @ai_usage_providers codex
-  # "Codex   5h 1% 2m" is 16 + 4 = 20, under the title's 20 + 2.
-  [ "$(open_popup 59 30)" = "$(popup_cmd 22 5 line 55)" ]
+  # "Codex   5h 1% 2m" is 16 + 4 = 20, under the 25 the 20-column title
+  # needs: tmux 3.5a cuts its trailing space below title + 5.
+  [ "$(open_popup 59 30)" = "$(popup_cmd 25 5 line 55)" ]
 }
 
 @test "wrapped notes keep the table popup at the table's width" {

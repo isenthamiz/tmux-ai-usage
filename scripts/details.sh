@@ -20,7 +20,9 @@ SELF="$DIR/details.sh"
 BAR_CELLS=10
 TABLE_WIDTH=56   # the widest table line: header and window rows
 PADDING=1        # cells of space inside the popup border, on every side
+CHROME=$((2 * PADDING + 2))   # padding on both sides plus the border
 TITLE=' AI usage · q close '
+TITLE_SLACK=5    # tmux 3.5a cuts a popup title shorter than its width - 5
 RESET=$'\033[0m'
 
 # A tmux colour as a terminal escape: #rrggbb, colourN, or a basic name.
@@ -62,15 +64,16 @@ problem_text() { # provider status
 }
 
 # The table when it fits the client with padding and border, else one line
-# per provider. Sets LAYOUT and WIDTH (the body width notes wrap to).
+# per provider. Sets LAYOUT and NOTE_WIDTH (the body width notes wrap to:
+# the table's, or whatever room a narrow client leaves).
 choose_layout() { # client_width
-  local room=$(($1 - 2 * PADDING - 2))
+  local room=$(($1 - CHROME))
   if [ "$room" -ge "$TABLE_WIDTH" ]; then
-    LAYOUT=table WIDTH=$TABLE_WIDTH
+    LAYOUT=table NOTE_WIDTH=$TABLE_WIDTH
   else
-    LAYOUT=line WIDTH=$room
-    [ "$WIDTH" -gt "$TABLE_WIDTH" ] && WIDTH=$TABLE_WIDTH
-    [ "$WIDTH" -lt 20 ] && WIDTH=20
+    LAYOUT=line NOTE_WIDTH=$room
+    # Wrapping still needs room for a word after the indent.
+    [ "$NOTE_WIDTH" -lt 16 ] && NOTE_WIDTH=16
   fi
 }
 
@@ -126,7 +129,7 @@ read_snapshots() {
 
 # Prints the popup body in LAYOUT (table, or one line per provider). Each
 # provider's window rows come first, then its notes (problem, stale), which
-# wrap to WIDTH.
+# wrap to NOTE_WIDTH.
 draw() {
   local text dim crit
   text=$(ansi "$COLOR_TEXT"); dim=$(ansi "$COLOR_DIM"); crit=$(ansi "$COLOR_CRIT")
@@ -159,7 +162,7 @@ draw() {
       color=${note%%$'\x1f'*}
       while IFS= read -r wrapped; do
         all+=("$color$wrapped")
-      done < <(wrap $((WIDTH - ${#indent})) "${note#*$'\x1f'}")
+      done < <(wrap $((NOTE_WIDTH - ${#indent})) "${note#*$'\x1f'}")
     done
     for r in "${all[@]}"; do
       if [ "$first" -eq 1 ]; then
@@ -209,7 +212,7 @@ draw() {
 # Open a popup sized to the body: widest line and line count, plus padding
 # and border, at least as wide as the title, at most the client's size.
 open_popup() { # client client_width client_height
-  local client=$1 cw=$2 ch=$3 body line widest=0 lines=0 w h
+  local client=$1 cw=$2 ch=$3 body line widest=0 lines=0 w h min_w
   choose_layout "$cw"
   body=$(draw)
   while IFS= read -r line; do
@@ -217,30 +220,37 @@ open_popup() { # client client_width client_height
     [ "$w" -gt "$widest" ] && widest=$w
     lines=$((lines + 1))
   done <<<"$body"
-  w=$((widest + 2 * PADDING + 2))
-  [ "$w" -lt $(($(visible_width "$TITLE") + 2)) ] && w=$(($(visible_width "$TITLE") + 2))
+  min_w=$(($(visible_width "$TITLE") + TITLE_SLACK))
+  w=$((widest + CHROME))
+  [ "$w" -lt "$min_w" ] && w=$min_w
   [ "$w" -gt "$cw" ] && w=$cw
-  h=$((lines + 2 * PADDING + 2))
+  h=$((lines + CHROME))
   [ "$h" -gt "$ch" ] && h=$ch
   tmux display-popup -c "$client" -E -w "$w" -h "$h" -T "$TITLE" \
-    "'$SELF' --layout $LAYOUT --width $WIDTH"
+    "'$SELF' --layout $LAYOUT --width $NOTE_WIDTH"
 }
 
 load_options
 now=${AI_USAGE_NOW:-$(date +%s)}
 
-case ${1:-} in
-  --open)
-    open_popup "$2" "$3" "$4"
-    exit 0 ;;
-  --layout)
-    LAYOUT=$2 WIDTH=${4:-$TABLE_WIDTH} ;;
-  *)
-    choose_layout "${COLUMNS:-80}" ;;
-esac
+if [ "${1:-}" = --open ]; then
+  open_popup "$2" "$3" "$4"
+  exit 0
+fi
+
+choose_layout "${COLUMNS:-80}"
+once=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --layout) LAYOUT=$2; shift ;;
+    --width) NOTE_WIDTH=$2; shift ;;
+    --once) once=1 ;;
+  esac
+  shift
+done
 
 # Piped or under test: one frame, unpadded.
-if [ "${1:-}" = --once ] || [ ! -t 0 ]; then
+if [ "$once" -eq 1 ] || [ ! -t 0 ]; then
   draw
   exit 0
 fi
