@@ -237,7 +237,7 @@ A provider never disappears from the side-by-side `#{ai_usage}`; it keeps its po
 
 From [How should the details popup look and open?](https://github.com/isenthamiz/tmux-ai-usage/issues/42). The prototype is on the `prototype/details-popup` branch.
 
-- **Opens** on `prefix + <@ai_usage_details_key>` (default `u`; empty binds nothing), titled ` AI usage · q close `; `q` or `Esc` closes it.
+- **Opens** on `prefix + <@ai_usage_details_key>` (default `u`; empty binds nothing), titled ` AI usage · q close ` (in the text and dim colours, since tmux would otherwise draw the title in the popup border's colour, which themes make nearly invisible); `q` or `Esc` closes it.
 - **Sized to its content** (from [Size the details popup to its content](https://github.com/isenthamiz/tmux-ai-usage/issues/57)): the binding runs `details.sh --open` through `run-shell`, which renders the body once and opens `display-popup` at the widest line and the line count, plus one cell of padding on every side and the border. It is at least wide enough for the whole title (title + 5 on tmux 3.5a) and at most the client's size. The size is fixed when it opens; the body still redraws every 10 s.
 - **Reads** cached usage snapshots only, like the status line.
 - **Table layout:** one row per quota window, every enabled provider, most-used first: provider, window label, 10-cell progress bar, percentage, countdown, and reset as local clock time (`Thu 22:39`). When the client is too narrow for the table (56 columns plus padding and border), it uses one line per provider instead (`Claude  5h 19% 3h39m  wk 0% 6d23h`). Problem and stale notes wrap to the layout's width.

@@ -156,8 +156,10 @@ open_popup() { # client_width client_height
   cat "$TMUX_SHIM_POPUP_LOG"
 }
 
+# The title is coloured itself: tmux would draw plain title text in the
+# popup border's colour, which themes make nearly invisible.
 popup_cmd() { # width height layout wrap-width
-  printf "display-popup -c client0 -E -w %s -h %s -T  AI usage · q close  '%s' --layout %s --width %s" \
+  printf "display-popup -c client0 -E -w %s -h %s -T #[fg=#bac2de] AI usage #[fg=#6c7086]· q close  '%s' --layout %s --width %s" \
     "$1" "$2" "$ROOT/scripts/details.sh" "$3" "$4"
 }
 
