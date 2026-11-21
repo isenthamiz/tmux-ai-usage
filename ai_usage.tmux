@@ -56,6 +56,8 @@ if [ -n "$line" ]; then
   case $details_key in \"*\"|\'*\') details_key=${details_key:1:${#details_key}-2} ;; esac
 fi
 if [ -n "$details_key" ]; then
-  tmux bind-key -T prefix "$details_key" display-popup -E -w 80% -h 60% \
-    -T ' AI usage ' "'$DIR/scripts/details.sh'"
+  # details.sh measures its body and opens a popup of that size; tmux fills
+  # in which client pressed the key and how big it is.
+  tmux bind-key -T prefix "$details_key" run-shell -b \
+    "'$DIR/scripts/details.sh' --open #{q:client_name} #{client_width} #{client_height}"
 fi

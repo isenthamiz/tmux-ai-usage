@@ -141,14 +141,14 @@ OPTS
   export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
   echo 'status-right #{ai_usage}' >"$TMUX_SHIM_OPTIONS"
   load_plugin
-  [ "$(cat "$TMUX_SHIM_BIND_LOG")" = "bind-key -T prefix u display-popup -E -w 80% -h 60% -T  AI usage  '$ROOT/scripts/details.sh'" ]
+  [ "$(cat "$TMUX_SHIM_BIND_LOG")" = "bind-key -T prefix u run-shell -b '$ROOT/scripts/details.sh' --open #{q:client_name} #{client_width} #{client_height}" ]
 }
 
 @test "@ai_usage_details_key picks the key" {
   export TMUX_SHIM_BIND_LOG="$BATS_TEST_TMPDIR/bind.log"
   printf '%s\n' 'status-right #{ai_usage}' '@ai_usage_details_key U' >"$TMUX_SHIM_OPTIONS"
   load_plugin
-  [[ "$(cat "$TMUX_SHIM_BIND_LOG")" == 'bind-key -T prefix U display-popup '* ]]
+  [[ "$(cat "$TMUX_SHIM_BIND_LOG")" == 'bind-key -T prefix U run-shell -b '* ]]
 }
 
 @test "an empty @ai_usage_details_key binds nothing" {

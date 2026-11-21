@@ -32,6 +32,9 @@ case "$1" in
   set-option)
     [ -n "$TMUX_SHIM_SET_LOG" ] && echo "$*" >>"$TMUX_SHIM_SET_LOG"
     ;;
+  display-popup)
+    [ -n "${TMUX_SHIM_POPUP_LOG:-}" ] && echo "$*" >>"$TMUX_SHIM_POPUP_LOG"
+    ;;
   bind-key)
     [ -n "${TMUX_SHIM_BIND_LOG:-}" ] && echo "$*" >>"$TMUX_SHIM_BIND_LOG"
     ;;

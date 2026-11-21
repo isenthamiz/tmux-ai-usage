@@ -204,7 +204,7 @@ Focus changes how `#{ai_usage}` is rewritten when the plugin loads, so turning i
 
 #### Details popup
 
-`prefix + u` opens a popup listing every quota window of every enabled provider, most-used first, with its progress bar, percentage, time until reset and the reset as local clock time. Problems are spelled out with their fix (for example ``!login Run `codex login`.``), and a stale reading shows how old the last good reading is. Below about 60 columns it shows one line per provider. `q` or `Esc` closes it. Like the status line, it only reads cached usage snapshots.
+`prefix + u` opens a popup listing every quota window of every enabled provider, most-used first, with its progress bar, percentage, time until reset and the reset as local clock time. Problems are spelled out with their fix (for example ``!login Run `codex login`.``), and a stale reading shows how old the last good reading is. The popup is sized to what it shows, and on a terminal too narrow for the table it shows one line per provider. `q` or `Esc` closes it. Like the status line, it only reads cached usage snapshots.
 
 | Option | Value | Default |
 |---|---|---|

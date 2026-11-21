@@ -2,8 +2,12 @@
 # The details popup body: every enabled provider's quota windows in full,
 # with problems explained. Reads cached usage snapshots only.
 #
-#   details.sh          draw, redraw every 10 s, close on q or Esc
-#   details.sh --once   draw once and exit (tests, piping)
+#   details.sh --open CLIENT WIDTH HEIGHT
+#       (the key binding, via run-shell) pick the layout for the client's
+#       width, measure the body and open a popup of exactly that size
+#   details.sh --layout table|line --width N
+#       (inside the popup) draw, redraw every 10 s, close on q or Esc
+#   details.sh --once   draw once at $COLUMNS (default 80) and exit
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/options.sh
 . "$DIR/lib/options.sh"
@@ -12,8 +16,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/format.sh
 . "$DIR/lib/format.sh"
 
+SELF="$DIR/details.sh"
 BAR_CELLS=10
-NARROW_BELOW=60
+TABLE_WIDTH=56   # the widest table line: header and window rows
+PADDING=1        # cells of space inside the popup border, on every side
+CHROME=$((2 * PADDING + 2))   # padding on both sides plus the border
+TITLE=' AI usage · q close '
+TITLE_SLACK=5    # tmux 3.5a cuts a popup title shorter than its width - 5
 RESET=$'\033[0m'
 
 # A tmux colour as a terminal escape: #rrggbb, colourN, or a basic name.
@@ -54,12 +63,44 @@ problem_text() { # provider status
   printf '%s %s' "$(status_marker "$2")" "$(fix_text "$1" "$2")"
 }
 
-# The popup's width. tput inside $() writes to a pipe and can't see the
-# terminal, so ask the tty directly.
-term_cols() {
-  local size
-  size=$(stty size 2>/dev/null </dev/tty) || size=""
-  case ${size#* } in ''|*[!0-9]*) echo 80 ;; *) echo "${size#* }" ;; esac
+# The table when it fits the client with padding and border, else one line
+# per provider. Sets LAYOUT and NOTE_WIDTH (the body width notes wrap to:
+# the table's, or whatever room a narrow client leaves).
+choose_layout() { # client_width
+  local room=$(($1 - CHROME))
+  if [ "$room" -ge "$TABLE_WIDTH" ]; then
+    LAYOUT=table NOTE_WIDTH=$TABLE_WIDTH
+  else
+    LAYOUT=line NOTE_WIDTH=$room
+    # Wrapping still needs room for a word after the indent.
+    [ "$NOTE_WIDTH" -lt 16 ] && NOTE_WIDTH=16
+  fi
+}
+
+# Characters on screen, not bytes: colours stripped, counted under UTF-8
+# (tmux may run us under the C locale).
+visible_width() { # text
+  local LC_ALL=en_US.UTF-8 plain=$1
+  while [[ $plain == *$'\033['*m* ]]; do
+    local head=${plain%%$'\033['*} rest=${plain#*$'\033['}
+    plain=$head${rest#*m}
+  done
+  echo "${#plain}"
+}
+
+# Word-wrap text to width columns, one line per output line.
+wrap() { # width text
+  local LC_ALL=en_US.UTF-8 width=$1 word line=""
+  local -a words
+  read -r -a words <<<"$2"
+  for word in "${words[@]}"; do
+    if [ -n "$line" ] && [ $((${#line} + 1 + ${#word})) -gt "$width" ]; then
+      printf '%s\n' "$line"; line=$word
+    else
+      line=${line:+$line }$word
+    fi
+  done
+  [ -n "$line" ] && printf '%s\n' "$line"
 }
 
 clock() { date -r "$1" '+%a %H:%M'; }
@@ -86,15 +127,15 @@ read_snapshots() {
       end'
 }
 
-# Prints the popup body: a table, or one line per provider when narrow.
-# Each provider's window rows come first, then its notes (problem, stale).
+# Prints the popup body in LAYOUT (table, or one line per provider). Each
+# provider's window rows come first, then its notes (problem, stale), which
+# wrap to NOTE_WIDTH.
 draw() {
   local text dim crit
   text=$(ansi "$COLOR_TEXT"); dim=$(ansi "$COLOR_DIM"); crit=$(ansi "$COLOR_CRIT")
 
-  local narrow=0 cols=${ONCE_COLUMNS:-}
-  [ -n "$cols" ] || cols=$(term_cols)
-  [ "$cols" -lt "$NARROW_BELOW" ] && narrow=1
+  local narrow=0
+  [ "$LAYOUT" = line ] && narrow=1
 
   local name_w=8 indent='         '
   if [ "$narrow" -eq 1 ]; then
@@ -108,13 +149,21 @@ draw() {
   local kind p f1 f2 f3 cur="" status ok_at stale draws_windows rows=() notes=() line
   flush() {
     [ -n "$cur" ] || return 0
-    local name first=1 r all=("${rows[@]}" "${notes[@]}")
+    local name first=1 r note color wrapped all=()
     name=$(provider_name "$cur")
     if [ "$narrow" -eq 1 ] && [ "${#rows[@]}" -gt 0 ]; then
       local joined=""
       for r in "${rows[@]}"; do joined="${joined:+$joined  }$r"; done
-      all=("$joined" "${notes[@]}")
+      all=("$joined")
+    else
+      all=("${rows[@]}")
     fi
+    for note in "${notes[@]}"; do
+      color=${note%%$'\x1f'*}
+      while IFS= read -r wrapped; do
+        all+=("$color$wrapped")
+      done < <(wrap $((NOTE_WIDTH - ${#indent})) "${note#*$'\x1f'}")
+    done
     for r in "${all[@]}"; do
       if [ "$first" -eq 1 ]; then
         printf '%s%s%s %s%s\n' "$text" "$(printf "%-${name_w}s" "$name")" "$RESET" "$r" "$RESET"
@@ -130,14 +179,14 @@ draw() {
       flush
       cur=$p status=$f1 ok_at=$f2 rows=() notes=() stale=0 draws_windows=1
       case $status in
-        pending) notes=("${dim}… no reading yet") draws_windows=0 ;;
+        pending) notes=("$dim"$'\x1f'"… no reading yet") draws_windows=0 ;;
         signed_out|missing_dep|bad_shape)
-          notes=("$crit$(problem_text "$p" "$status")") draws_windows=0 ;;
-        error) notes=("$crit$(problem_text "$p" "$status")") ;;
+          notes=("$crit"$'\x1f'"$(problem_text "$p" "$status")") draws_windows=0 ;;
+        error) notes=("$crit"$'\x1f'"$(problem_text "$p" "$status")") ;;
       esac
       if [ "$draws_windows" -eq 1 ] && [ "${ok_at:-0}" != 0 ] && is_stale "$ok_at" "$now"; then
         stale=1
-        notes+=("$dim~ last good reading $(countdown $((now - ok_at))) ago; numbers may be out of date")
+        notes+=("$dim"$'\x1f'"~ last good reading $(countdown $((now - ok_at))) ago; numbers may be out of date")
       fi
       continue
     fi
@@ -160,26 +209,61 @@ draw() {
   flush
 }
 
-load_options
+# Open a popup sized to the body: widest line and line count, plus padding
+# and border, at least as wide as the title, at most the client's size.
+open_popup() { # client client_width client_height
+  local client=$1 cw=$2 ch=$3 body line widest=0 lines=0 w h min_w
+  choose_layout "$cw"
+  body=$(draw)
+  while IFS= read -r line; do
+    w=$(visible_width "$line")
+    [ "$w" -gt "$widest" ] && widest=$w
+    lines=$((lines + 1))
+  done <<<"$body"
+  min_w=$(($(visible_width "$TITLE") + TITLE_SLACK))
+  w=$((widest + CHROME))
+  [ "$w" -lt "$min_w" ] && w=$min_w
+  [ "$w" -gt "$cw" ] && w=$cw
+  h=$((lines + CHROME))
+  [ "$h" -gt "$ch" ] && h=$ch
+  tmux display-popup -c "$client" -E -w "$w" -h "$h" -T "$TITLE" \
+    "'$SELF' --layout $LAYOUT --width $NOTE_WIDTH"
+}
 
-if [ "${1:-}" = --once ]; then
-  ONCE_COLUMNS=${COLUMNS:-}  # no terminal to ask when piped
-  now=${AI_USAGE_NOW:-$(date +%s)}
+load_options
+now=${AI_USAGE_NOW:-$(date +%s)}
+
+if [ "${1:-}" = --open ]; then
+  open_popup "$2" "$3" "$4"
+  exit 0
+fi
+
+choose_layout "${COLUMNS:-80}"
+once=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --layout) LAYOUT=$2; shift ;;
+    --width) NOTE_WIDTH=$2; shift ;;
+    --once) once=1 ;;
+  esac
+  shift
+done
+
+# Piped or under test: one frame, unpadded.
+if [ "$once" -eq 1 ] || [ ! -t 0 ]; then
   draw
   exit 0
 fi
 
-# Poll keys once a second: redraw when the popup is resized (bash 3.2's read
-# isn't interrupted by SIGWINCH) or every 10 s, and close on q or Esc.
-drawn_at=0 drawn_cols=""
+# In the popup: padded, redrawn every 10 s, closed by q or Esc. Keys are
+# polled once a second because bash 3.2's read -t can't be woken sooner.
+drawn_at=0
 while :; do
   now=$(date +%s)
-  cols=$(term_cols)
-  if [ "$cols" != "$drawn_cols" ] || [ $((now - drawn_at)) -ge 10 ]; then
-    printf '\033[2J\033[H'
-    draw
-    printf '\n%sq close%s' "$(ansi "$COLOR_DIM")" "$RESET"
-    drawn_at=$now drawn_cols=$cols
+  if [ $((now - drawn_at)) -ge 10 ]; then
+    printf '\033[2J\033[H\n'
+    draw | sed 's/^/ /'
+    drawn_at=$now
   fi
   key=""
   IFS= read -rsn1 -t 1 key
