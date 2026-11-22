@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# details.sh: the details popup body, printed once, colours stripped.
+# details.sh: the details popup body, colours stripped: printed once, and drawn on a pty.
 # shellcheck disable=SC2030,SC2031,SC2016
 load test_helper
 
@@ -204,4 +204,26 @@ seed_three() {
   snap cursor ok 0 wk:58:86400
   # header, claude row, 3 wrapped !format lines, cursor row = 6 lines.
   [ "$(open_popup 200 50)" = "$(popup_cmd 60 10 table 56)" ]
+}
+
+# The interactive popup, as tmux runs it: on a terminal (script gives it a
+# pty), closed by q. Killed after 10 s, so a lost q fails instead of hanging.
+# Killing script closes the pty, which hangs up details.sh too.
+popup_loop() {
+  local out=$BATS_TEST_TMPDIR/popup pid waited=0
+  (sleep 1; printf q) | COLUMNS=80 TZ=UTC AI_USAGE_NOW=$NOW \
+    script -q /dev/null "$ROOT/scripts/details.sh" >"$out" 2>&1 3>&- &
+  pid=$! # script's own pid: the last command of the pipeline
+  while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 10 ]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+  kill "$pid" 2>/dev/null
+  LC_ALL=C sed $'s/\033\\[[0-9;?]*[a-zA-Z]//g' "$out" | tr -d '\r'
+}
+
+@test "the open popup counts down from the injected clock" {
+  snap claude ok 0 5h:30:7980
+  out=$(popup_loop)
+  [[ $out == *"2h13m"*"Thu 10:05"* ]] || { printf '%s\n' "$out"; return 1; }
 }
