@@ -263,9 +263,10 @@ fi
 
 # In the popup: padded, redrawn every 10 s, closed by q or Esc. Keys are
 # polled once a second because bash 3.2's read -t can't be woken sooner.
+# A frozen AI_USAGE_NOW (tests, README captures) draws one frame, never redraws.
 drawn_at=0
 while :; do
-  now=$(date +%s)
+  now=${AI_USAGE_NOW:-$(date +%s)}
   if [ $((now - drawn_at)) -ge 10 ]; then
     printf '\033[2J\033[H\n'
     draw | sed 's/^/ /'
