@@ -1,127 +1,74 @@
 # tmux-ai-usage
 
-A [TPM](https://github.com/tmux-plugins/tpm) plugin that draws **plan-quota usage bars** in the tmux status line for Claude, Codex, and Cursor. Each bar shows how full the selected quota window is and the time until it resets. Readings are cached and refreshed in the background; the status line never blocks on network I/O.
+See how much of your Claude, Codex and Cursor plan quota you've used, and when it resets, right in the tmux status line.
 
-**Platform:** macOS only in v1. tmux ≥ 3.2 for width-aware steps.
+![A tmux window whose status line shows three usage bars: cl wk at 71% in yellow, cx 5h at 42% and cu wk at 23% in green, each with the time until it resets](docs/images/hero.png)
 
-Example (with default labels and colours, on a wide terminal):
+- One **usage bar** per provider: which quota window, how full it is, and the time until it resets.
+- Green, then yellow from 60%, then red from 85%.
+- Never makes tmux wait: readings are cached and refreshed in the background.
+- macOS only in v1; tmux ≥ 3.2 for the bars to shrink on narrow terminals.
+
+Terms such as *plan quota*, *quota window* and *usage snapshot* are defined in [`GLOSSARY.md`](GLOSSARY.md).
+
+## Quick start
+
+1. Add these lines to `~/.tmux.conf`. If you already use [TPM](https://github.com/tmux-plugins/tpm) and a theme, add only the lines you're missing, and keep this plugin **after** your theme:
+
+   ```tmux
+   set -g @plugin 'tmux-plugins/tpm'
+   set -g @plugin 'catppuccin/tmux'          # your theme, if you use one
+   set -g @plugin 'isenthamiz/tmux-ai-usage' # after the theme
+
+   set -g @ai_usage_providers 'claude codex cursor'   # keep only the ones you use
+   set -g status-right '#{ai_usage} │ %H:%M'
+
+   run '~/.tmux/plugins/tpm/tpm'
+   ```
+
+2. In tmux, press `prefix + I` to install the plugin.
+3. Install `jq`: `brew install jq`. Cursor needs a little more; see [Requirements](#requirements).
+4. Sign in to each provider you kept: run `claude` once, run `codex login`, and open the Cursor app.
+5. Press `prefix + r` to reload tmux (or restart it).
+
+You should now see the usage bars in your status line, as in the picture above. For a moment each provider shows its label dimmed with `…` (for example `cl …`), until its first reading arrives. Nothing showing, or a literal `#{ai_usage}`? See [Troubleshooting](#troubleshooting).
+
+## Reading a usage bar
 
 ```
-cl wk ▰▰▰▱▱ 3d4h │ cx 5h ▰▰▰▰▱ 47m │ cu wk ▰▰▰▱▱ 4d2h
+cl  wk  ▰▰▰▱▱  3d4h
+│   │   │      └─ time until reset
+│   │   └─ progress bar: how much is used
+│   └─ quota window (wk = weekly)
+└─ provider (cl = Claude)
 ```
 
-On narrower terminals the bars shrink in [steps](#steps), down to `cl cx cu` in their usage colours below 80 columns by default. `#{ai_usage}` can also [rotate](#rotation) through providers one at a time or [focus](#focus) on the agent in the active pane, and `prefix + u` opens a [details popup](#details-popup) with every quota window.
+This reads "Claude, weekly window, about 60% used, resets in 3 days 4 hours".
 
-Terms such as *plan quota*, *quota window*, and *usage snapshot* are defined in [`GLOSSARY.md`](GLOSSARY.md).
-
-## Install
-
-1. Install [TPM](https://github.com/tmux-plugins/tpm) if you do not already use it.
-2. Add the plugin **after your theme plugin**, so tokens like `#{ai_usage}` are already in `status-left` or `status-right` when this plugin loads and rewrites them:
-
-```tmux
-set -g @plugin 'tmux-plugins/tpm'
-set -g @plugin 'catppuccin/tmux'          # or your theme — must load first
-set -g @plugin 'isenthamiz/tmux-ai-usage'
-```
-
-3. Press **prefix + I** in tmux to install plugins, or run your usual TPM install step.
-4. Install dependencies (see below), sign in to each provider you want, then reload tmux (`prefix + r`) or restart the server.
+- **Colours:** the progress bar is green, turns yellow from 60% and red from 85%. Both thresholds are adjustable in the [Reference](#colours-and-thresholds).
+- **Which window:** a provider can have several quota windows at once, for example Claude's 5-hour and weekly windows. The bar shows whichever is most used right now. To always show one, pin it: `set -g @ai_usage_claude_window wk`.
+- **A number instead:** the full step shows no percentage. `set -g @ai_usage_bar_width 0` shows the percentage in place of the progress bar.
+- **Every window at once:** press `prefix + u` for the [details popup](#everything-at-once-the-details-popup).
 
 ## Placement
 
-Put one of these tokens in `status-left` or `status-right` (often via your theme’s status format):
+You put a token in your status line, and when tmux loads, the plugin swaps it for the usage bars.
 
-| Token | Renders |
+| Token | Shows |
 |---|---|
-| `#{ai_usage}` | All enabled providers, joined with `@ai_usage_separator`; or one at a time with rotation, or the focused one with focus |
-| `#{ai_usage_claude}` | Claude only (follows the step; ignores rotation and focus) |
-| `#{ai_usage_codex}` | Codex only (follows the step; ignores rotation and focus) |
-| `#{ai_usage_cursor}` | Cursor only (follows the step; ignores rotation and focus) |
+| `#{ai_usage}` | All your providers in one place: side by side, or one at a time with [rotation](#one-provider-at-a-time) or [focus](#only-the-agent-in-this-pane) |
+| `#{ai_usage_claude}`, `#{ai_usage_codex}`, `#{ai_usage_cursor}` | One provider each, so you can put them in different places |
 
-On load, the plugin replaces each token with a `#(…/scripts/render.sh …)` command. A per-provider token still works even if that provider is omitted from `@ai_usage_providers`.
-
-Example:
+A plain status line:
 
 ```tmux
-set -g status-right '#{prefix} │ #{ai_usage} │ %H:%M'
-```
-
-## Recipes
-
-A complete `~/.tmux.conf` (every option is explained in the [Reference](#reference)):
-
-```tmux
-set -g @plugin 'tmux-plugins/tpm'
-set -g @plugin 'catppuccin/tmux'
-set -g @plugin 'isenthamiz/tmux-ai-usage'
-
 set -g status-right '#{ai_usage} │ %H:%M'
-
-set -g @ai_usage_providers 'claude cursor'
-set -g @ai_usage_claude_window 'wk'
-set -g @ai_usage_warn_at '70'
-
-run '~/.tmux/plugins/tpm/tpm'
 ```
 
-Show only Claude and Cursor, in that order:
+With [catppuccin](https://github.com/catppuccin/tmux), next to one of its modules:
 
 ```tmux
-set -g @ai_usage_providers 'claude cursor'
-```
-
-Always show Claude's weekly window instead of the most-used one:
-
-```tmux
-set -g @ai_usage_claude_window 'wk'
-```
-
-Percentage instead of the bar:
-
-```tmux
-set -g @ai_usage_bar_width '0'
-```
-
-Colours without catppuccin:
-
-```tmux
-set -g @ai_usage_ok_color '#50fa7b'
-set -g @ai_usage_warn_color '#f1fa8c'
-set -g @ai_usage_crit_color '#ff5555'
-set -g @ai_usage_text_color '#f8f8f2'
-set -g @ai_usage_dim_color '#6272a4'
-```
-
-One provider at a time, 20 s each:
-
-```tmux
-set -g @ai_usage_rotate 'on'
-set -g @ai_usage_rotate_interval '20'
-```
-
-Always the compact step, whatever the width:
-
-```tmux
-set -g @ai_usage_step '2'
-```
-
-Show only the provider whose agent runs in the active pane (needs a reload):
-
-```tmux
-set -g @ai_usage_focus 'on'
-```
-
-Open the details popup with `prefix + U` instead of `prefix + u` (needs a reload):
-
-```tmux
-set -g @ai_usage_details_key 'U'
-```
-
-Never bind a details key:
-
-```tmux
-set -g @ai_usage_details_key ''
+set -g status-right '#{ai_usage} #{E:@catppuccin_status_session}'
 ```
 
 Each provider in its own place:
@@ -131,26 +78,108 @@ set -g status-left '#{ai_usage_claude} '
 set -g status-right '#{ai_usage_cursor} │ %H:%M'
 ```
 
-## Status-line states
+Good to know:
 
-Markers are fixed in v1. A provider keeps its place in the side-by-side `#{ai_usage}` even when something is wrong.
+- The plugin line must come **after** your theme's line in `~/.tmux.conf`. If you see a literal `#{ai_usage}` in the status line, the order is wrong.
+- Adding or moving a token needs `prefix + r`.
 
-| What you see (full step) | At step 4 | Meaning |
+## Tour
+
+### Narrow terminals shrink the usage bars
+
+![The status line narrowing: the window labels go, then the countdowns, then the progress bars become percentages, then only the coloured labels cl cx cu remain](docs/images/steps.gif)
+
+*Breakpoints scaled down for the picture; the defaults are 180 / 140 / 110 / 80 columns.*
+
+As the terminal gets narrower, every usage bar drops parts in **steps**, all providers together:
+
+- full: `cl wk ▰▰▰▰▱ 3d4h │ cx 5h ▰▰▱▱▱ 47m`
+- step 1: `cl ▰▰▰▰▱ 3d4h │ cx ▰▰▱▱▱ 47m` (window labels go)
+- step 2: `cl ▰▰▰▰▱ cx ▰▰▱▱▱` (countdowns go, except at or above the red threshold)
+- step 3: `cl 71% cx 42%` (percentages instead of progress bars)
+- step 4: `cl cx`, each label in its usage colour
+
+Always the full step, whatever the width:
+
+```tmux
+set -g @ai_usage_step full
+```
+
+Always compact:
+
+```tmux
+set -g @ai_usage_step 2
+```
+
+Shrinking automatically needs tmux 3.2 or newer; older tmux shows the full step unless you set one. The breakpoints are adjustable: see [Steps](#steps) in the Reference.
+
+### One provider at a time
+
+![A single slot in the status line switching from cl to cx to cu](docs/images/rotation.gif)
+
+With **rotation**, `#{ai_usage}` shows one provider at a time, each for an equal turn (10 seconds by default, rounded up to whole `status-interval` ticks). It's for a crowded status line where you still want to keep an eye on every provider.
+
+```tmux
+set -g @ai_usage_rotate on
+set -g @ai_usage_rotate_interval 20   # optional: seconds per provider
+```
+
+It applies on the next redraw, with no reload. Only `#{ai_usage}` rotates, and with one provider nothing does. Details in [Rotation](#rotation).
+
+### Only the agent in this pane
+
+![Three panes: the status line shows cl while the Claude pane is active, cx in the Codex pane, and rotates through all three in a plain shell pane](docs/images/focus.gif)
+
+With **focus**, `#{ai_usage}` shows only the provider whose AI agent runs in the pane you're in: Claude Code, Codex, or Cursor's CLI. In a plain shell pane you get the usual view. It's for running agents in separate panes when you only care about the one in front of you.
+
+```tmux
+set -g @ai_usage_focus on
+```
+
+Then press `prefix + r`: focus is read when the plugin loads. It wins over rotation, and an agent paused with `^Z` isn't detected.
+
+Focus and rotation together, as in the picture: in an agent's pane you see that provider; anywhere else the providers take turns.
+
+```tmux
+set -g @ai_usage_focus on
+set -g @ai_usage_rotate on
+```
+
+Details in [Focus](#focus).
+
+### Everything at once: the details popup
+
+![The details popup: Claude's wk, wk-opus and 5h windows with progress bars, percentages and reset times; Codex showing !login with "Run codex login"; Cursor marked as a stale reading](docs/images/popup.png)
+
+Press `prefix + u` for every quota window of every provider: its progress bar, percentage, time until reset and the reset as local clock time. Problems are spelled out with their fix. Use it to check the weekly window while the bar shows the 5-hour one, or to find out what a `!` means. `q` or `Esc` closes it.
+
+To open it with a different key (then press `prefix + r`):
+
+```tmux
+set -g @ai_usage_details_key 'U'
+```
+
+Details in [Details popup](#details-popup).
+
+### When something's wrong
+
+![A status line with problems: cl wk healthy, cx showing !login in red, cu dimmed with ~ before its progress bar](docs/images/problems.png)
+
+A usage bar shows a **marker** when a reading isn't plainly good:
+
+| You see | Meaning | Fix |
 |---|---|---|
-| `cx 5h ▰▰▰▰▱ 47m` | `cx` in its usage colour | **`ok`** — or a transient `error` while the last good reading is still fresh |
-| `cl …` (dim) | `cl` (dim) | **Pending** — no snapshot yet; the first refresh may still be running |
-| `cx 5h ~▰▰▰▰▱ 47m` (dim) | `cx` (dim, no `~`) | **Stale** — the last good reading is older than `@ai_usage_stale_after` |
-| `cl !login` | `cl!` | Not signed in (`signed_out`) |
-| `cx !deps` | `cx!` | Missing dependency or Keychain refused (`missing_dep`) |
-| `cu !format` | `cu!` | Provider response did not match a known shape (`bad_shape`) |
-| `cl !error` | `cl!` | Transient failure with no prior good reading (`error`) |
-| `!jq` | `!jq` | `jq` missing at plugin load |
+| `cl …` (dim) | No reading yet | Wait for the first reading |
+| `cu wk ~▰▱▱▱▱ 4d2h` (dim) | The last good reading is old (stale) | Check your network; run [`doctor.sh`](#diagnostics) |
+| `cx !login` | The provider no longer accepts your sign-in | Claude: run `claude` and `/login`. Codex: `codex login`. Cursor: sign in to the app |
+| `cx !deps` | Something the plugin needs is missing | See [Requirements](#requirements); for Cursor, allow the Keychain prompt |
+| `cu !format` | The provider answered in a shape the plugin doesn't know | Update the plugin, or open an issue |
+| `cl !error` | A temporary failure, with no earlier good reading | Clears by itself |
+| `!jq` | `jq` isn't installed | `brew install jq`, then `prefix + r` |
 
-- `~` sits immediately before whatever shows usage: the progress bar, or the percentage at step 3 (`cx ~81%`) and with `@ai_usage_bar_width 0`.
-- The markers read the same from full to step 3. At step 4 they become `<label>!` in the crit colour, so "action needed" stays distinct from a crit-coloured label meaning high usage.
-- A window whose reset time has passed counts as 0% (an empty progress bar, or `0%`) with no countdown until the next reading.
-- The progress bar and percentage colour follow the warn/crit thresholds; the provider label uses the text colour (the usage colour at step 4); the window label, countdown and separator are dim.
-- The [details popup](#details-popup) spells each problem out with its fix.
+- At step 4 the `!` markers become `cl!` in red, so "action needed" stays distinct from a red label meaning high usage.
+- A window whose reset time has passed shows 0% until the next reading.
+- The [details popup](#everything-at-once-the-details-popup) shows the fix for each problem too.
 
 ## Requirements
 
@@ -248,6 +277,8 @@ Which quota window that provider's usage bar shows. `auto` shows whichever windo
 set -g @ai_usage_claude_window 'wk'
 ```
 
+In the Tour: [Reading a usage bar](#reading-a-usage-bar).
+
 #### `@ai_usage_claude_label`, `@ai_usage_codex_label`, `@ai_usage_cursor_label`
 
 The provider label at the start of each usage bar.
@@ -301,6 +332,8 @@ How much of each usage bar to show. With `auto` the bar shrinks as the terminal 
 set -g @ai_usage_step full
 ```
 
+In the Tour: [Narrow terminals shrink the usage bars](#narrow-terminals-shrink-the-usage-bars).
+
 #### `@ai_usage_step_widths`
 
 The narrowest terminal, in columns, at which the full step, step 1, step 2 and step 3 still show. Anything narrower than the last number gets step 4. Each tmux client gets its own step, so a narrow and a wide terminal attached to the same session each show what fits.
@@ -313,6 +346,8 @@ The narrowest terminal, in columns, at which the full step, step 1, step 2 and s
 ```tmux
 set -g @ai_usage_step_widths '200 160 120 90'
 ```
+
+In the Tour: [Narrow terminals shrink the usage bars](#narrow-terminals-shrink-the-usage-bars).
 
 ### Rotation
 
@@ -329,6 +364,8 @@ With `on`, `#{ai_usage}` shows one provider at a time instead of all side by sid
 set -g @ai_usage_rotate on
 ```
 
+In the Tour: [One provider at a time](#one-provider-at-a-time).
+
 #### `@ai_usage_rotate_interval`
 
 How many seconds each provider stays on screen. The value is rounded up to whole `status-interval` ticks, because tmux only redraws the status line that often. With tmux's default `status-interval` of 15, a value of `10` gives 15-second turns; lower `status-interval` for shorter ones.
@@ -341,6 +378,8 @@ How many seconds each provider stays on screen. The value is rounded up to whole
 ```tmux
 set -g @ai_usage_rotate_interval 20
 ```
+
+In the Tour: [One provider at a time](#one-provider-at-a-time).
 
 ### Focus
 
@@ -357,6 +396,8 @@ With `on`, `#{ai_usage}` shows only the provider whose AI agent runs in the acti
 set -g @ai_usage_focus on
 ```
 
+In the Tour: [Only the agent in this pane](#only-the-agent-in-this-pane).
+
 ### Details popup
 
 #### `@ai_usage_details_key`
@@ -370,6 +411,8 @@ The key, pressed after the tmux prefix, that opens the details popup: every quot
 ```tmux
 set -g @ai_usage_details_key 'U'
 ```
+
+In the Tour: [Everything at once: the details popup](#everything-at-once-the-details-popup).
 
 ### Progress bar
 
