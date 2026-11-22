@@ -24,6 +24,8 @@
 
 **Pending**: A provider for which no usage snapshot exists yet.
 
+**Marker**: The short sign a usage bar shows when a reading isn't plainly good: `!login`, `!deps`, `!format` or `!error` for a failed snapshot status (in place of usage), `!jq` when the plugin can't run at all, `~` before the usage of a stale reading, and `…` for a pending provider.
+
 **Rotation**: Showing one provider's usage bar at a time in a single slot, cycling through the enabled providers in turn. Opt-in; the default shows every enabled provider side by side.
 
 **Focus**: The provider whose AI agent is running in the active tmux pane. Opt-in, independent of rotation: when on, the focused provider is shown alone, taking precedence over both the side-by-side view and rotation; with no agent in the pane, or one whose provider isn't enabled, the usual view returns.
