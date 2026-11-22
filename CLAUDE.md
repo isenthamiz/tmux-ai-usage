@@ -15,6 +15,8 @@ tmux-ai-usage is a TPM (tmux plugin manager) plugin that shows plan-quota usage 
 - `make test`: shellcheck on every script and test file, then the bats suite. Dev dependencies: `brew install bats-core shellcheck jq`.
 - `make lint` / `make unit`: either half on its own.
 - `bats test/render.bats`: one test file. `bats -f '<name regex>' test/refresh.bats`: one test.
+- `make images`: regenerate the README images in `docs/images/` from hand-made usage snapshots (`docs/demo/`); `make images ONLY=popup` for one. Needs `brew install vhs` (optional dev dependency, not needed for `make test`). It only uses private tmux servers (`-L ai-usage-demo`, `-L ai-usage-outer`).
+- After changing how the status line or the details popup looks, run `make images` and commit the regenerated images. CI does not check them: renders differ slightly between machines.
 
 All scripts must run on macOS `/bin/bash` 3.2. Tests run only at the seams `SPEC.md` names: each provider's `normalize.jq` against fixtures, and `scripts/render.sh` behind PATH shims in `test/shims/`, with the clock injected through `AI_USAGE_NOW`.
 

@@ -506,7 +506,8 @@ The plugin only reads. It **never refreshes sign-in tokens**, never writes crede
 ## Development
 
 ```bash
-make test   # shellcheck + bats
+make test     # shellcheck + bats
+make images   # regenerate the screenshots in docs/images/; needs brew install vhs
 ```
 
 See [`SPEC.md`](SPEC.md) for the architecture and [`GLOSSARY.md`](GLOSSARY.md) for the vocabulary.
